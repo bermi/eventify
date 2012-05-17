@@ -1,6 +1,6 @@
 # Eventify
 
-[![Build Status](https://secure.travis-ci.org/bermi/evemtify.png)](http://travis-ci.org/bermi/eventify)
+[![Build Status](https://secure.travis-ci.org/bermi/eventify.png?branch=master)](http://travis-ci.org/bermi/eventify)
 
 Eventify is a lightweight module that can be mixed in to any object in order to provide it with custom events. It has no external dependencies. Based on Backbone.Events
 
