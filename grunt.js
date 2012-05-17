@@ -40,7 +40,27 @@ module.exports = function (grunt) {
         before: true
       }
     },
-    uglify: {}
+    pkg: '<json:package.json>',
+    meta: {
+      banner: "// <%= pkg.name %> - v<%= pkg.version %> " +
+      '(<%= grunt.template.today("yyyy-mm-dd") %>)' +
+      "\n// -----------------\n" +
+      "// Copyright(c) 2010-2012 Jeremy Ashkenas, DocumentCloud\n" +
+      "// Copyright(c) 2012 Bermi Ferrer <bermi@bermilabs.com>\n" +
+      "// MIT Licensed\n"
+    },
+    concat: {
+      dist: {
+        src: ['lib/events.js'],
+        dest: 'dist/events.js'
+      }
+    },
+    min: {
+      dist: {
+        src: ['<banner>', 'dist/events.js'],
+        dest: 'dist/events.min.js'
+      }
+    }
   });
 
   // Default task.

@@ -32,7 +32,7 @@ dev-test:
 	make test-watch
 
 all:
-	./node_modules/.bin/grunt
+	./node_modules/.bin/grunt lint concat min
 
 lint:
 	./node_modules/.bin/grunt lint
