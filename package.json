@@ -1,9 +1,15 @@
 {
   "name": "events",
-  "version": "0.0.1",
-  "description": "Module that can be mixed in to any object in order to provide it with custom events. Based on Backbone.Events",
+  "version": "0.1.1",
+  "description": "Module that can be mixed in to any object in order to provide it with custom events. For node.js and the browser. Based on Backbone.Events",
   "author": "Bermi Ferrer <bermi@bermilabs.com>",
   "keywords": [
+      "event",
+      "browser",
+      "trigger",
+      "observer",
+      "bind",
+      "backbone"
   ],
   "bugs": {
       "url": "https://github.com/bermi/events/issues"
