@@ -1,8 +1,8 @@
-# events
+# Eventify
 
-[![Build Status](https://secure.travis-ci.org/bermi/events.png)](http://travis-ci.org/bermi/events)
+[![Build Status](https://secure.travis-ci.org/bermi/evemtify.png)](http://travis-ci.org/bermi/eventify)
 
-Events is a lightweight module that can be mixed in to any object in order to provide it with custom events. It has no external dependencies. Based on Backbone.Events
+Eventify is a lightweight module that can be mixed in to any object in order to provide it with custom events. It has no external dependencies. Based on Backbone.Events
 
 ## Installing
 
@@ -10,28 +10,28 @@ Events is a lightweight module that can be mixed in to any object in order to pr
 
 A 1.6k (830 bytes gzipped) browser ready version is available on the dist/ folder.
 
-    <script src="/dist/events.min.js" type="text/javascript"></script>
+    <script src="/dist/eventify.min.js" type="text/javascript"></script>
 
 
 ### Node.js
 
-    $ npm install events
+    $ npm install eventify
 
 
 ### Ender support
 
-    ender add events
+    ender add eventify
 
-Will provide access to an Events instance on $.events and will expose the $.eventize function;
+Will provide access to the $.eventify function
 
 
 ## Documentation
 
-Events is a module that can be mixed in to any object, giving the object the ability to bind and trigger custom named events. Events do not have to be declared before they are bound, and may take passed arguments. For example:
+Eventify is a module that can be mixed in to any object, giving the object the ability to bind and trigger custom named events. Events do not have to be declared before they are bound, and may take passed arguments. For example:
 
     var object = {};
     
-    Events.eventize(object);
+    Eventify.create(object);
     
     object.on("alert", function(msg) {
       alert("Triggered " + msg);
@@ -40,13 +40,13 @@ Events is a module that can be mixed in to any object, giving the object the abi
     object.trigger("alert", "an event");
 
 
-### *eventize* Events.eventize(destination)
+### *create* Eventify.create(destination)
 
 Copies the methods on, off and trigger to the destination object, and returns the destination object.
 
 For example, to make a handy event dispatcher that can coordinate events among different areas of your application:
 
-    var dispatcher = Events.eventize()
+    var dispatcher = Eventify.create()
 
 
 ### *on* object.on(event, callback, [context])
@@ -88,20 +88,20 @@ Remove a previously-bound callback function from an object. If no context is spe
 Trigger callbacks for the given event, or space-delimited list of events. Subsequent arguments to trigger will be passed along to the event callbacks.
 
 
-### *noClonflict* var LocalEvents = Events.noConflict(); 
+### *noClonflict* var LocalEventify = Eventify.noConflict(); 
 
-Returns the Events object back to its original value. You can use the return value of Events.noConflict() to keep a local reference to Events. Useful for embedding Events on third-party websites, where you don't want to clobber the existing Events object.
+Returns the Eventify object back to its original value. You can use the return value of Eventify.noConflict() to keep a local reference to Eventify. Useful for embedding Eventify on third-party websites, where you don't want to clobber the existing Eventify object.
 
-    var localEvents = Events.noConflict();
-    var model = localEvents.eventize();
+    var localEventify = Eventify.noConflict();
+    var model = localEventify.create();
 
 
-Another option is to bind the Events library to the window object using a different name. You can do so by declaring the localEventsLibraryName before loading the events library code. For example:
+Another option is to bind the Eventify library to the window object using a different name. You can do so by declaring the localEventifyLibraryName before loading the Eventify library code. For example:
 
-    <script>var localEventsLibraryName = 'EventManager';</script>
-    <script src="/dist/events.min.js" type="text/javascript"></script>
+    <script>var localEventifyLibraryName = 'EventManager';</script>
+    <script src="/dist/eventify.min.js" type="text/javascript"></script>
     <script>
-        var dispatcher = EventManager.eventize();
+        var dispatcher = EventManager.create();
     </script>
 
 

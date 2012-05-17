@@ -1,29 +1,29 @@
 (function (root) {
 
   var expect = root.expect || require('expect.js'),
-    Events;
+    Eventify;
 
   if (typeof window === 'undefined') {
-    root.Events = "original";
-    Events = require('../index.js');
+    root.Eventify = "original";
+    Eventify = require('../index.js');
   } else {
-    Events = root.Events;
+    Eventify = root.Eventify;
   }
 
-  describe('Events', function () {
+  describe('Eventify', function () {
 
     describe('No conflict', function () {
-      it('should restore original Events', function () {
-        var b = Events,
+      it('should restore original Eventify', function () {
+        var b = Eventify,
           currentVersion = b.noConflict();
         expect(currentVersion).to.be(b);
-        expect(root.Events).to.be("original");
+        expect(root.Eventify).to.be("original");
       });
     });
 
     describe("On and trigger", function () {
       var obj = { counter: 0 };
-      Events.eventize(obj);
+      Eventify.create(obj);
       it('should increment counter', function () {
         obj.on('event', function () { obj.counter += 1; });
         obj.trigger('event');
@@ -40,7 +40,7 @@
 
     describe("Binding and triggering multiple events", function () {
       var obj = { counter: 0 };
-      Events.eventize(obj);
+      Eventify.create(obj);
 
       obj.on('a b c', function () { obj.counter += 1; });
 
@@ -61,7 +61,7 @@
 
       it('should trigger all for each event', function () {
         var a, b, obj = { counter: 0 };
-        Events.eventize(obj);
+        Eventify.create(obj);
         obj.on('all', function (event) {
           obj.counter = obj.counter + 1;
           if (event === 'a') {
@@ -82,7 +82,7 @@
     describe("On, then unbind all functions", function () {
       var callback,
         obj = { counter: 0 };
-      Events.eventize(obj);
+      Eventify.create(obj);
       callback = function () { obj.counter = obj.counter + 1; };
       obj.on('event', callback);
       obj.trigger('event');
@@ -96,7 +96,7 @@
     describe("Bind two callbacks, unbind only one", function () {
       var callback,
         obj = { counterA: 0, counterB: 0 };
-      Events.eventize(obj);
+      Eventify.create(obj);
       callback = function () { obj.counterA = obj.counterA + 1; };
       obj.on('event', callback);
       obj.on('event', function () { obj.counterB = obj.counterB + 1; });
@@ -114,7 +114,7 @@
     describe("Unbind a callback in the midst of it firing", function () {
       var callback,
         obj = {counter: 0};
-      Events.eventize(obj);
+      Eventify.create(obj);
       callback = function () {
         obj.counter = obj.counter + 1;
         obj.off('event', callback);
@@ -130,7 +130,7 @@
 
     describe("Two binds that unbind themeselves", function () {
       var obj = { counterA: 0, counterB: 0 };
-      Events.eventize(obj);
+      Eventify.create(obj);
       function incrA() {
         obj.counterA = obj.counterA + 1;
         obj.off('event', incrA);
@@ -162,7 +162,7 @@
           expect(true).to.be(true);
           done();
         };
-        obj = Events.eventize();
+        obj = Eventify.create();
         obj.on('event', function () {
             this.assertTrue();
           }, (new TestClass()));
@@ -172,7 +172,7 @@
 
     describe("nested trigger with unbind", function () {
       var obj = { counter: 0 };
-      Events.eventize(obj);
+      Eventify.create(obj);
       function incr1() {
         obj.counter = obj.counter + 1;
         obj.off('event', incr1);
@@ -193,7 +193,7 @@
 
     describe("callback list is not altered during trigger", function () {
       var counter = 0,
-        obj = Events.eventize();
+        obj = Eventify.create();
       function incr() {
         counter = counter + 1;
       }
@@ -218,7 +218,7 @@
 
     describe("#1282 - 'all' callback list is retrieved after each event.", function () {
       var counter = 0,
-        obj = Events.eventize();
+        obj = Eventify.create();
       function incr() {
         counter = counter + 1;
       }
@@ -232,12 +232,12 @@
     });
 
     describe("if no callback is provided, `on` is a noop", function () {
-      Events.eventize().on('test').trigger('test');
+      Eventify.create().on('test').trigger('test');
     });
 
     describe("remove all events for a specific context", function () {
       it("should remove context", function (done) {
-        var obj = Events.eventize();
+        var obj = Eventify.create();
         obj.on('x y all', function () {
           expect(true).to.be(true);
         });
@@ -252,7 +252,7 @@
 
     describe("remove all events for a specific callback", function () {
       it("should remove callback", function (done) {
-        var obj = Events.eventize();
+        var obj = Eventify.create();
         function success() {
           expect(true).to.be(true);
         }
@@ -269,7 +269,7 @@
 
     describe("off is chainable", function () {
       it("should be chainable", function () {
-        var obj = Events.eventize();
+        var obj = Eventify.create();
         // With no events
         expect(obj.off() === obj).to.be(true);
         // When removing all events
@@ -283,7 +283,7 @@
 
     describe("#1310 - off does not skip consecutive events", function () {
       it("should not skip", function (done) {
-        var obj = Events.eventize();
+        var obj = Eventify.create();
         obj.on('event', function () { expect(true).to.be(false); }, obj);
         obj.on('event', function () { expect(true).to.be(false); }, obj);
         obj.off(null, null, obj);
@@ -294,7 +294,7 @@
 
     describe("Additional parameters", function () {
       it("should include aditional parameters", function (done) {
-        var obj = Events.eventize(),
+        var obj = Eventify.create(),
           param1 = "one",
           param2 = ["two"];
         obj.on('event', function (one, two) {

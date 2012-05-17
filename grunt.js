@@ -52,14 +52,14 @@ module.exports = function (grunt) {
     },
     concat: {
       dist: {
-        src: ['lib/events.js'],
-        dest: 'dist/events.js'
+        src: ['lib/eventify.js'],
+        dest: 'dist/eventify.js'
       }
     },
     min: {
       dist: {
-        src: ['<banner>', 'dist/events.js'],
-        dest: 'dist/events.min.js'
+        src: ['<banner>', 'dist/eventify.js'],
+        dest: 'dist/eventify.min.js'
       }
     }
   });
