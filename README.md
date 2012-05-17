@@ -31,7 +31,7 @@ Eventify is a module that can be mixed in to any object, giving the object the a
 
     var object = {};
     
-    Eventify.create(object);
+    Eventify.enable(object);
     
     object.on("alert", function(msg) {
       alert("Triggered " + msg);
@@ -40,13 +40,13 @@ Eventify is a module that can be mixed in to any object, giving the object the a
     object.trigger("alert", "an event");
 
 
-### *create* Eventify.create(destination)
+### *enable* Eventify.enable(destination)
 
 Copies the methods on, off and trigger to the destination object, and returns the destination object.
 
 For example, to make a handy event dispatcher that can coordinate events among different areas of your application:
 
-    var dispatcher = Eventify.create()
+    var dispatcher = Eventify.enable()
 
 
 ### *on* object.on(event, callback, [context])
@@ -93,7 +93,7 @@ Trigger callbacks for the given event, or space-delimited list of events. Subseq
 Returns the Eventify object back to its original value. You can use the return value of Eventify.noConflict() to keep a local reference to Eventify. Useful for embedding Eventify on third-party websites, where you don't want to clobber the existing Eventify object.
 
     var localEventify = Eventify.noConflict();
-    var model = localEventify.create();
+    var model = localEventify.enable();
 
 
 Another option is to bind the Eventify library to the window object using a different name. You can do so by declaring the localEventifyLibraryName before loading the Eventify library code. For example:
@@ -101,7 +101,7 @@ Another option is to bind the Eventify library to the window object using a diff
     <script>var localEventifyLibraryName = 'EventManager';</script>
     <script src="/dist/eventify.min.js" type="text/javascript"></script>
     <script>
-        var dispatcher = EventManager.create();
+        var dispatcher = EventManager.enable();
     </script>
 
 
