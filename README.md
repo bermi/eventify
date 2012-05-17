@@ -1,5 +1,7 @@
 # events
 
+[![Build Status](https://secure.travis-ci.org/bermi/events.png)](http://travis-ci.org/bermi/events)
+
 Events is a lightweight module that can be mixed in to any object in order to provide it with custom events. It has no external dependencies. Based on Backbone.Events
 
 ## Installing
