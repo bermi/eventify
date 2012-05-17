@@ -43,4 +43,4 @@ docclean:
 
 clean: docclean test-clean-instrument test-watch test
 
-.PHONY: test test-cov docclean dev docclean
+.PHONY: test test-coverage docclean dev docclean test-clean-instrument test-instrument

@@ -5,7 +5,7 @@
 
   if (typeof window === 'undefined') {
     root.Events = "original";
-    Events = require('../');
+    Events = require('../index.js');
   } else {
     Events = root.Events;
   }

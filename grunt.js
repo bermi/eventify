@@ -37,7 +37,8 @@ module.exports = function (grunt) {
         describe: true,
         expect: true,
         it: true,
-        before: true
+        before: true,
+        ender: true
       }
     },
     pkg: '<json:package.json>',

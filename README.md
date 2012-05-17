@@ -16,13 +16,20 @@ A 1.6k (830 bytes gzipped) browser ready version is available on the dist/ folde
     $ npm install events
 
 
+### Ender support
+
+    ender add events
+
+Will provide access to an Events instance on $.events and will expose the $.eventize function;
+
+
 ## Documentation
 
 Events is a module that can be mixed in to any object, giving the object the ability to bind and trigger custom named events. Events do not have to be declared before they are bound, and may take passed arguments. For example:
 
     var object = {};
     
-    Events.eventify(object);
+    Events.eventize(object);
     
     object.on("alert", function(msg) {
       alert("Triggered " + msg);
@@ -31,13 +38,13 @@ Events is a module that can be mixed in to any object, giving the object the abi
     object.trigger("alert", "an event");
 
 
-### *eventify* Events.eventify(destination)
+### *eventize* Events.eventize(destination)
 
 Copies the methods on, off and trigger to the destination object, and returns the destination object.
 
 For example, to make a handy event dispatcher that can coordinate events among different areas of your application:
 
-    var dispatcher = Events.eventify()
+    var dispatcher = Events.eventize()
 
 
 ### *on* object.on(event, callback, [context])
@@ -84,7 +91,7 @@ Trigger callbacks for the given event, or space-delimited list of events. Subseq
 Returns the Events object back to its original value. You can use the return value of Events.noConflict() to keep a local reference to Events. Useful for embedding Events on third-party websites, where you don't want to clobber the existing Events object.
 
     var localEvents = Events.noConflict();
-    var model = localEvents.eventify();
+    var model = localEvents.eventize();
 
 
 Another option is to bind the Events library to the window object using a different name. You can do so by declaring the localEventsLibraryName before loading the events library code. For example:
@@ -92,7 +99,7 @@ Another option is to bind the Events library to the window object using a differ
     <script>var localEventsLibraryName = 'EventManager';</script>
     <script src="/dist/events.min.js" type="text/javascript"></script>
     <script>
-        var dispatcher = EventManager.eventify();
+        var dispatcher = EventManager.eventize();
     </script>
 
 
