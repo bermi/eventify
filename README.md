@@ -10,7 +10,7 @@ Eventify is a lightweight module that can be mixed in to any object in order to 
 
 A 1.6k (830 bytes gzipped) browser ready version is available on the dist/ folder.
 
-    <script src="/dist/eventify.min.js" type="text/javascript"></script>
+    <script src="https://raw.github.com/bermi/eventify/master/dist/eventify.min.js" type="text/javascript"></script>
 
 
 ### Node.js
