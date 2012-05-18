@@ -107,6 +107,14 @@ Another option is to bind the Eventify library to the window object using a diff
 
 ## Testing
 
+In order to run the tests you will need to have nodejs installed.
+
+Install dev dependencies with:
+
+    $ npm install
+
+And then run the tests with:
+
     $ make test
 
 ### On the browser
