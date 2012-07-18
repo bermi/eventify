@@ -1,8 +1,9 @@
 {
   "name": "eventify",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "description": "Lightweight module that can be mixed in to any object in order to provide it with custom events. For node.js and the browser. Based on Backbone.Events",
   "author": "Bermi Ferrer <bermi@bermilabs.com>",
+  "url": "https://github.com/bermi/eventify",
   "keywords": [
       "event",
       "eventify",
@@ -23,12 +24,11 @@
       "url": "http://opensource.org/licenses/mit-license.php"
     }
   ],
-  "repositories": [
-      {
-          "type": "git",
-          "url": "git://github.com/bermi/eventify.git"
-      }
-  ],
+  "repository":
+  {
+      "type": "git",
+      "url": "git://github.com/bermi/eventify.git"
+  },
   "engines": {
     "node": "0.6.x"
   },
