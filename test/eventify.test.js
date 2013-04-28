@@ -3,7 +3,7 @@
   var expect = root.expect || require('expect.js'),
     Eventify;
 
-  if (typeof window === 'undefined') {
+  if (typeof require !== 'undefined') {
     root.Eventify = "original";
     Eventify = require('../index.js');
   } else {

@@ -1,14 +1,16 @@
 # Eventify
 
+Eventify is a lightweight module that can be mixed in to any object in order to provide it with custom events. It has no external dependencies. Based on Backbone.Events
+
 [![Build Status](https://secure.travis-ci.org/bermi/eventify.png?branch=master)](http://travis-ci.org/bermi/eventify)
 
-Eventify is a lightweight module that can be mixed in to any object in order to provide it with custom events. It has no external dependencies. Based on Backbone.Events
+[![browser support](http://ci.testling.com/bermi/eventify.png)](http://ci.testling.com/bermi/eventify)
 
 ## Installing
 
 ### On the browser
 
-A 1.6k (830 bytes gzipped) browser ready version is available on the dist/ folder.
+A 1.7k (867 bytes gzipped) browser ready version is available on the dist/ folder.
 
     <script src="https://raw.github.com/bermi/eventify/master/dist/eventify.min.js" type="text/javascript"></script>
 
@@ -30,13 +32,13 @@ Will provide access to the $.eventify function
 Eventify is a module that can be mixed in to any object, giving the object the ability to bind and trigger custom named events. Events do not have to be declared before they are bound, and may take passed arguments. For example:
 
     var object = {};
-    
+
     Eventify.enable(object);
-    
+
     object.on("alert", function(msg) {
       alert("Triggered " + msg);
     });
-    
+
     object.trigger("alert", "an event");
 
 
@@ -65,7 +67,7 @@ Callbacks bound to the special "all" event will be triggered when any event occu
 
 
 ### *off* object.off([event], [callback], [context])
- 
+
 Remove a previously-bound callback function from an object. If no context is specified, all of the versions of the callback with different contexts will be removed. If no callback is specified, all callbacks for the event will be removed. If no event is specified, all event callbacks on the object will be removed.
 
     // Removes just the `onChange` callback.
@@ -83,12 +85,12 @@ Remove a previously-bound callback function from an object. If no context is spe
     // Removes all callbacks on `object`.
     object.off();
 
-### *trigger* object.trigger(event, [*args]) 
+### *trigger* object.trigger(event, [*args])
 
 Trigger callbacks for the given event, or space-delimited list of events. Subsequent arguments to trigger will be passed along to the event callbacks.
 
 
-### *noClonflict* var LocalEventify = Eventify.noConflict(); 
+### *noClonflict* var LocalEventify = Eventify.noConflict();
 
 Returns the Eventify object back to its original value. You can use the return value of Eventify.noConflict() to keep a local reference to Eventify. Useful for embedding Eventify on third-party websites, where you don't want to clobber the existing Eventify object.
 

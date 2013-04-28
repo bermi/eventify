@@ -32,10 +32,13 @@ dev-test:
 	make test-watch
 
 all:
-	./node_modules/.bin/grunt lint concat min
+	./node_modules/.bin/grunt
 
 lint:
 	./node_modules/.bin/grunt lint
+
+build:
+	./node_modules/.bin/grunt build
 
 docclean:
 	rm -f docs/*.{1,html}
@@ -43,4 +46,4 @@ docclean:
 
 clean: docclean test-clean-instrument test-watch test
 
-.PHONY: test test-coverage docclean dev docclean test-clean-instrument test-instrument
+.PHONY: test build lint test-cov docclean dev
