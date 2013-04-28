@@ -4,8 +4,6 @@ Eventify is a lightweight module that can be mixed in to any object in order to 
 
 [![Build Status](https://secure.travis-ci.org/bermi/eventify.png?branch=master)](http://travis-ci.org/bermi/eventify)
 
-[![browser support](http://ci.testling.com/bermi/eventify.png)](http://ci.testling.com/bermi/eventify)
-
 ## Installing
 
 ### On the browser
