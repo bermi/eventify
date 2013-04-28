@@ -1,25 +1,27 @@
 (function (root) {
 
   var expect = root.expect || require('expect.js'),
-    Eventify;
+    Eventify,
+    is_commons = typeof require !== 'undefined';
 
-  if (typeof require !== 'undefined') {
-    root.Eventify = "original";
-    Eventify = require('../index.js');
+  if (is_commons) {
+    Eventify = require('../');
   } else {
     Eventify = root.Eventify;
   }
 
   describe('Eventify', function () {
 
-    describe('No conflict', function () {
-      it('should restore original Eventify', function () {
-        var b = Eventify,
-          currentVersion = b.noConflict();
-        expect(currentVersion).to.be(b);
-        expect(root.Eventify).to.be("original");
+    if (!is_commons) {
+      describe('No conflict', function () {
+        it('should restore original Eventify', function () {
+          var b = Eventify,
+            currentVersion = b.noConflict();
+          expect(currentVersion).to.be(b);
+          expect(root.Eventify).to.be("original");
+        });
       });
-    });
+    }
 
     describe("On and trigger", function () {
       var obj = { counter: 0 };
@@ -128,7 +130,7 @@
       });
     });
 
-    describe("Two binds that unbind themeselves", function () {
+    describe("Two binds that unbind themselves", function () {
       var obj = { counterA: 0, counterB: 0 };
       Eventify.enable(obj);
       function incrA() {
@@ -293,7 +295,7 @@
     });
 
     describe("Additional parameters", function () {
-      it("should include aditional parameters", function (done) {
+      it("should include additional parameters", function (done) {
         var obj = Eventify.enable(),
           param1 = "one",
           param2 = ["two"];
