@@ -4,13 +4,15 @@ Eventify is a lightweight module that can be mixed in to any object in order to 
 
 [![Build Status](https://secure.travis-ci.org/bermi/eventify.png?branch=master)](http://travis-ci.org/bermi/eventify)
 
+[![browser support](http://ci.testling.com/bermi/eventify.png)](http://ci.testling.com/bermi/eventify)
+
 ## Installing
 
 ### On the browser
 
 A 1.7k (867 bytes gzipped) browser ready version is available on the dist/ folder.
 
-    <script src="https://raw.github.com/bermi/eventify/master/dist/eventify.min.js" type="text/javascript"></script>
+    <script src="dist/eventify.min.js" type="text/javascript"></script>
 
 
 ### Node.js
