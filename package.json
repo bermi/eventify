@@ -57,7 +57,7 @@
     "files": "test/*.js"
   },
   "ender": "./lib/ender.js",
-  "main": "index",
+  "main": "./lib/eventify.js",
   "directories": {
     "lib": "./lib"
   }
