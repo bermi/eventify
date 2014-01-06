@@ -1,5 +1,5 @@
 (function (root) {
-
+  "use strict";
   var expect = root.expect || require('expect.js'),
     Eventify,
     is_commons = typeof require !== 'undefined';
