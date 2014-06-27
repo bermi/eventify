@@ -10,7 +10,7 @@ Eventify is a lightweight module that can be mixed in to any object in order to 
 
 ### On the browser
 
-A 1.7k (867 bytes gzipped) browser ready version is available on the dist/ folder.
+A 3.19 kB (1.4K gzipped) browser ready version is available on the dist/ folder.
 
     <script src="dist/eventify.min.js" type="text/javascript"></script>
 
@@ -66,6 +66,15 @@ Callbacks bound to the special "all" event will be triggered when any event occu
     });
 
 
+All event methods also support an event map syntax, as an alternative to positional arguments:
+
+    book.on({
+      "change:title": titleView.update,
+      "change:author": authorPane.update,
+      "destroy": bookView.remove
+    });
+
+
 ### *off* object.off([event], [callback], [context])
 
 Remove a previously-bound callback function from an object. If no context is specified, all of the versions of the callback with different contexts will be removed. If no callback is specified, all callbacks for the event will be removed. If no event is specified, all event callbacks on the object will be removed.
@@ -85,9 +94,33 @@ Remove a previously-bound callback function from an object. If no context is spe
     // Removes all callbacks on `object`.
     object.off();
 
+
 ### *trigger* object.trigger(event, [*args])
 
 Trigger callbacks for the given event, or space-delimited list of events. Subsequent arguments to trigger will be passed along to the event callbacks.
+
+### *once** object.once(event, callback, [context])
+
+Just like on, but causes the bound callback to only fire once before being removed. Handy for saying "the next time that X happens, do this".
+
+
+### **listenTo** object.listenTo(other, event, callback)
+
+Tell an object to listen to a particular event on an other object. The advantage of using this form, instead of other.on(event, callback, object), is that listenTo allows the object to keep track of the events, and they can be removed all at once later on. The callback will always be called with object as context.
+
+    view.listenTo(model, 'change', view.render);
+
+### **stopListening** object.stopListening([other], [event], [callback])
+
+Tell an object to stop listening to events. Either call stopListening with no arguments to have the object remove all of its registered callbacks ... or be more precise by telling it to remove just the events it's listening to on a specific object, or a specific event, or just a specific callback.
+
+    view.stopListening();
+
+    view.stopListening(model);
+
+### **listenToOnce** object.listenToOnce(other, event, callback)
+
+Just like listenTo, but causes the bound callback to only fire once before being removed.
 
 
 ### *noClonflict* var LocalEventify = Eventify.noConflict();

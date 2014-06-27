@@ -4,3 +4,4 @@ npm-debug.log
 test/coverage.html
 dist/eventify.js
 lib-cov
+dist/eventify.min.js.zip
