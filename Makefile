@@ -1,22 +1,21 @@
+SHELL = /bin/bash
+MAKEFLAGS += --no-print-directory --silent
+export PATH := :$(PATH):./bin/
+
 test:
 	@NODE_ENV=test \
-		./node_modules/.bin/mocha \
-		--reporter spec \
+		mocha \
+		--require blanket \
+		--reporter mocha-spec-cov \
 		$(TESTFLAGS)
 
-test-instrument:
-	jscoverage lib lib-cov
-
-test-clean-instrument:
-	rm -rf lib-cov
 
 test-coverage-report:
-	@NODE_ENV=coverage \
-	./node_modules/.bin/mocha \
-	--reporter html-cov > test/coverage.html && \
-	open test/coverage.html
-
-test-coverage: test-clean-instrument test-instrument test-coverage-report
+	@NODE_ENV=test \
+		mocha \
+		--require blanket \
+		--reporter html-cov > coverage.html
+	echo "Coverage report available on coverage.html"
 
 test-watch:
 	@TESTFLAGS=--watch $(MAKE) test
@@ -25,25 +24,26 @@ test-browser:
 	open test/browser.html
 
 dev:
-	./node_modules/.bin/grunt watch
+	grunt watch
 
 dev-test:
 	make dev & \
 	make test-watch
 
 all:
-	./node_modules/.bin/grunt
+	grunt
 
 lint:
-	./node_modules/.bin/grunt lint
+	grunt lint
 
 build:
-	./node_modules/.bin/grunt build
+	grunt build
 
 docclean:
 	rm -f docs/*.{1,html}
 
+dist: build
 
 clean: docclean test-clean-instrument test-watch test
 
-.PHONY: test build lint test-cov docclean dev
+.PHONY: test build lint test-cov docclean dev dist

@@ -5,3 +5,4 @@ test/coverage.html
 dist/eventify.js
 lib-cov
 dist/eventify.min.js.zip
+coverage.html
