@@ -36,7 +36,6 @@
   },
   "dependencies": {},
   "devDependencies": {
-    "expect.js": "~0.3.1",
     "blanket": "1.1.6",
     "grunt": "~0.4.x",
     "grunt-cli": "^0.1.13",
@@ -44,7 +43,8 @@
     "grunt-contrib-jshint": "^0.10.0",
     "grunt-contrib-uglify": "^0.5.0",
     "grunt-contrib-watch": "^0.6.1",
-    "mocha": "~1.20.1"
+    "mocha": "~1.9.0",
+    "expect.js": "~0.2.0",
     "mocha-spec-cov": "0.0.3"
   },
   "scripts": {
@@ -63,6 +63,12 @@
     ],
     "harness": "mocha",
     "files": "test/*.js"
+  },
+  "config": {
+    "blanket": {
+      "data-cover-only": "[./,./lib]",
+      "data-cover-never": "[./node_modules]"
+    }
   },
   "ender": "./lib/ender.js",
   "main": "./lib/eventify.js",

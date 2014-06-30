@@ -473,11 +473,14 @@
     });
 
     it("if callback is truthy but not a function, `on` should throw an error" +
-      " just like jQuery", function () {
+      " just like jQuery", function (done) {
       var view = Eventify.enable({}).on('test', 'noop');
-      expect(function () {
+      try {
         view.trigger('test');
-      }).to.throwException(Error);
+      } catch (e) {
+        expect(e).to.be.an(Error);
+        done();
+      }
     });
 
     describe("remove all events for a specific context", function () {
