@@ -99,7 +99,7 @@ Remove a previously-bound callback function from an object. If no context is spe
 
 Trigger callbacks for the given event, or space-delimited list of events. Subsequent arguments to trigger will be passed along to the event callbacks.
 
-### *once** object.once(event, callback, [context])
+### **once** object.once(event, callback, [context])
 
 Just like on, but causes the bound callback to only fire once before being removed. Handy for saying "the next time that X happens, do this".
 
@@ -123,7 +123,7 @@ Tell an object to stop listening to events. Either call stopListening with no ar
 Just like listenTo, but causes the bound callback to only fire once before being removed.
 
 
-### *noClonflict* var LocalEventify = Eventify.noConflict();
+### *noConflict* var LocalEventify = Eventify.noConflict();
 
 Returns the Eventify object back to its original value. You can use the return value of Eventify.noConflict() to keep a local reference to Eventify. Useful for embedding Eventify on third-party websites, where you don't want to clobber the existing Eventify object.
 
