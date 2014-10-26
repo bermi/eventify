@@ -1,6 +1,6 @@
 SHELL = /bin/bash
 MAKEFLAGS += --no-print-directory --silent
-export PATH := :$(PATH):./bin/
+export PATH := ./node_modules/.bin/:$(PATH)
 
 test:
 	@NODE_ENV=test \
