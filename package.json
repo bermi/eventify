@@ -52,7 +52,7 @@
   },
   "testling": {
     "browsers": [
-      "iexplore/7..latest",
+      "iexplore/8..latest",
       "firefox/17..latest",
       "chrome/30..latest",
       "opera/12..latest",
