@@ -1,5 +1,7 @@
 module.exports = function (grunt) {
 
+  require("load-grunt-tasks")(grunt);
+
   // Project configuration.
   grunt.initConfig({
     jshint: {
@@ -33,13 +35,14 @@ module.exports = function (grunt) {
         src: ['<banner>', 'dist/eventify.js'],
         dest: 'dist/eventify.min.js'
       }
+    },
+    release: {
+      options: {
+        npm: true
+      }
     }
   });
 
-  grunt.loadNpmTasks("grunt-contrib-watch");
-  grunt.loadNpmTasks("grunt-contrib-concat");
-  grunt.loadNpmTasks("grunt-contrib-uglify");
-  grunt.loadNpmTasks("grunt-contrib-jshint");
 
   // Default task.
   grunt.registerTask('default', 'jshint');
