@@ -34,7 +34,7 @@ all:
 	grunt
 
 lint:
-	grunt lint
+	grunt jshint
 
 build:
 	grunt build

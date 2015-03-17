@@ -5,7 +5,7 @@
   "eqeqeq": true,
   "forin": true,
   "immed": true,
-  "latedef": true,
+  "latedef": "nofunc",
   "newcap": true,
   "noarg": true,
   "nonew": true,
@@ -23,6 +23,7 @@
   "white": true,
   "strict": false,
   "evil": true,
+  "maxlen": 80,
   "globals": {
     "describe": true,
     "expect": true,

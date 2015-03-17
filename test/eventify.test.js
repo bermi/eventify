@@ -12,6 +12,10 @@
 
   describe('Eventify', function () {
 
+    var protoMethods = ['on', 'once', 'off', 'trigger', 'stopListening',
+      'listenTo', 'listenToOnce'
+    ];
+
     if (!is_commons) {
       describe('No conflict', function () {
         it('should restore original Eventify', function () {
@@ -27,7 +31,7 @@
       it("should add the Events mixin to passed prototype", function () {
         var target = {};
         Eventify.enable(target);
-        expect(target).to.include.keys("on,once,off,trigger,stopListening".split(","));
+        expect(target).to.include.keys(protoMethods);
       });
 
       it("should return augmented object", function (done) {
@@ -50,8 +54,20 @@
         function Plop() {}
         Plop.prototype.foo = function () {};
         Eventify.enable(Plop.prototype);
-        expect(Plop.prototype).to.have.keys(['foo', 'on', 'once', 'off', 'trigger',
-          'stopListening', 'listenTo', 'listenToOnce', 'bind', 'unbind']);
+        expect(Plop.prototype).to.only.have.keys(['foo'].concat(protoMethods));
+      });
+    });
+
+    describe("Eventify.create", function () {
+      it("should return an empty event emitter", function (done) {
+        var emitter = Eventify.create();
+        protoMethods.forEach(function (method) {
+          expect(emitter[method]).to.be.a("function");
+        });
+        emitter.on("foo", function (foo) {
+          expect(foo).to.equal("create");
+          done();
+        }).trigger("foo", "create");
       });
     });
 
@@ -273,7 +289,8 @@
         e.trigger("foo");
       });
 
-      it("listenTo yourself cleans yourself up with stopListening", function () {
+      it("listenTo yourself cleans yourself up with stopListening",
+      function () {
         var e = Eventify.enable({});
         e.listenTo(e, "foo", function () {
           expect(true).to.be.ok();
@@ -419,7 +436,8 @@
       obj.on('event', incr1);
       obj.on('event', incr2);
       obj.trigger('event');
-      it('should have been incremented the counter three times', function (done) {
+      it('should have been incremented the counter three times',
+      function (done) {
         expect(obj.counter).to.be(3);
         done();
       });
@@ -452,7 +470,8 @@
       });
     });
 
-    describe("#1282 - 'all' callback list is retrieved after each event.", function () {
+    describe("#1282 - 'all' callback list is retrieved after each event.",
+    function () {
       var counter = 0,
         obj = Eventify.enable();
 
@@ -547,9 +566,11 @@
     });
 
 
-    describe("When attaching an event listener only once, it:", function () {
+    describe("When attaching an event listener only once, it:",
+    function () {
       it("once", function () {
-        // Same as the previous test, but we use once rather than having to explicitly unbind
+        // Same as the previous test, but we use once rather than
+        // having to explicitly unbind
         var incrA, incrB,
           obj = {
             counterA: 0,
@@ -566,8 +587,10 @@
         obj.once('event', incrA);
         obj.once('event', incrB);
         obj.trigger('event');
-        expect(obj.counterA, 1, 'counterA should have only been incremented once.');
-        expect(obj.counterB, 1, 'counterB should have only been incremented once.');
+        expect(obj.counterA, 1, 'counterA should have only been ' +
+          'incremented once.');
+        expect(obj.counterB, 1, 'counterB should have only been ' +
+          'incremented once.');
       });
 
       it("once variant one", function () {
