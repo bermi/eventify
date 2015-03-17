@@ -6,6 +6,8 @@ Eventify is a lightweight module that can be mixed in to any object in order to 
 
 [![browser support](http://ci.testling.com/bermi/eventify.png)](http://ci.testling.com/bermi/eventify)
 
+*(non-ES5 environments require an ES5 shim)*
+
 ## Installing
 
 ### On the browser
@@ -40,6 +42,26 @@ Eventify is a module that can be mixed in to any object, giving the object the a
     });
 
     object.trigger("alert", "an event");
+
+The prototype is also exposed so you can extend it:
+
+    function MyEmitter() {
+      // ...
+    }
+
+    MyEmitter.prototype = Object.create(Eventify.proto);
+
+    MyEmitter.prototype.foo = function () {
+      //...
+    };
+
+If you want to create a plain emitter in a lightweight manner, use `Eventify.create()`:
+
+    var emitter = Eventify.create();
+
+    emitter.on("foo", function (message) {
+      //...
+    })
 
 
 ### *enable* Eventify.enable(destination)

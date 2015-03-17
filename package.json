@@ -53,13 +53,13 @@
   "testling": {
     "browsers": [
       "iexplore/7..latest",
-      "firefox/10..latest",
-      "chrome/20..latest",
+      "firefox/17..latest",
+      "chrome/30..latest",
       "opera/12..latest",
-      "safari/4..latest",
+      "safari/5..latest",
       "iphone/6..latest",
       "ipad/6..latest",
-      "android-browser/4.2"
+      "android-browser/4.2..latest"
     ],
     "harness": "mocha",
     "files": "test/*.js"
