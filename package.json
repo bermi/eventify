@@ -1,6 +1,6 @@
 {
   "name": "eventify",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "Lightweight module that can be mixed in to any object in order to provide it with custom events. For node.js and the browser. Based on Backbone.Events",
   "author": "Bermi Ferrer <bermi@bermilabs.com>",
   "url": "https://github.com/bermi/eventify",
