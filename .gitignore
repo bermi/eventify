@@ -2,6 +2,7 @@
 node_modules
 npm-debug.log
 bun.lockb
+bun.lock
 coverage/
 *.lcov
 playwright-report/
