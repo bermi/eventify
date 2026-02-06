@@ -1,17 +1,6 @@
 // src/index.ts
 var eventSplitter = /\s+/;
 var stateByEmitter = new WeakMap;
-var listenerIds = new WeakMap;
-var listenerIdCounter = 0;
-function getListenerId(obj) {
-  const existing = listenerIds.get(obj);
-  if (existing) {
-    return existing;
-  }
-  const id = `l${++listenerIdCounter}`;
-  listenerIds.set(obj, id);
-  return id;
-}
 function noop() {}
 function reportError(state, error, meta) {
   try {
@@ -72,7 +61,7 @@ function getState(target, options) {
       events: new Map,
       patterns: [],
       all: [],
-      listeningTo: new Map,
+      listeningTo: new Set,
       schemas: options?.schemas,
       validate: options?.validate,
       onError: options?.onError ?? noop,
@@ -137,21 +126,19 @@ function splitName(name, delimiter) {
   return delimiter ? name.split(delimiter) : [name];
 }
 function isPatternName(state, name) {
-  if (name === "all") {
-    return false;
-  }
   const wildcard = state.wildcard;
   if (!wildcard) {
+    return false;
+  }
+  if (name.indexOf(wildcard) === -1) {
     return false;
   }
   const delimiter = state.namespaceDelimiter;
   const segments = splitName(name, delimiter);
   return segments.includes(wildcard);
 }
-function matchesPattern(state, entry, eventName) {
-  const delimiter = state.namespaceDelimiter;
+function matchesPatternSegments(state, entry, eventSegments) {
   const wildcard = state.wildcard;
-  const eventSegments = splitName(eventName, delimiter);
   const patternSegments = entry.segments;
   const patternLength = patternSegments.length;
   const eventLength = eventSegments.length;
@@ -204,11 +191,7 @@ function addListener(emitter, name, callback, context) {
     state.events.set(name, [entry]);
   }
 }
-function removeListener(emitter, name, callback, context) {
-  const state = getExistingState(emitter);
-  if (!state) {
-    return;
-  }
+function removeListener(state, name, callback, context) {
   const matches = (entry) => {
     const cb = callback;
     const cbMatches = !cb || cb === entry.callback || cb === entry.callback._callback;
@@ -292,7 +275,7 @@ var proto = {
       ...state.all.length ? ["all"] : []
     ];
     for (const eventName of names) {
-      removeListener(this, eventName, callback, context);
+      removeListener(state, eventName, callback, context);
     }
     return this;
   },
@@ -309,6 +292,7 @@ var proto = {
     const eventSnapshot = state.events.get(eventName)?.slice() ?? null;
     const patternSnapshot = state.patterns.length ? state.patterns.slice() : null;
     const allSnapshot = state.all.length ? state.all.slice() : null;
+    const eventSegments = patternSnapshot ? splitName(eventName, state.namespaceDelimiter) : null;
     if (eventSnapshot) {
       for (const entry of eventSnapshot) {
         safeCall(state, entry.callback, entry.ctx, validatedArgs, {
@@ -319,9 +303,9 @@ var proto = {
         });
       }
     }
-    if (patternSnapshot) {
+    if (patternSnapshot && eventSegments) {
       for (const entry of patternSnapshot) {
-        if (!matchesPattern(state, entry, eventName)) {
+        if (!matchesPatternSegments(state, entry, eventSegments)) {
           continue;
         }
         safeCall(state, entry.callback, entry.ctx, validatedArgs, {
@@ -355,8 +339,7 @@ var proto = {
       return this;
     }
     const state = getState(this);
-    const id = getListenerId(obj);
-    state.listeningTo.set(id, obj);
+    state.listeningTo.add(obj);
     if (typeof name === "object") {
       callback = this;
     }
@@ -368,8 +351,7 @@ var proto = {
       return this;
     }
     const state = getState(this);
-    const id = getListenerId(obj);
-    state.listeningTo.set(id, obj);
+    state.listeningTo.add(obj);
     if (typeof name === "object") {
       callback = this;
     }
@@ -394,8 +376,7 @@ var proto = {
     for (const target of targets) {
       target.off(name, callback, this);
       if (deleteListener) {
-        const id = getListenerId(target);
-        state.listeningTo.delete(id);
+        state.listeningTo.delete(target);
       }
     }
     if (deleteListener && !obj) {
@@ -502,5 +483,5 @@ export {
   Eventify
 };
 
-//# debugId=71078A54FCD6F70F64756E2164756E21
+//# debugId=D41E8497947BF42964756E2164756E21
 //# sourceMappingURL=index.js.map

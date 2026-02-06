@@ -345,6 +345,7 @@ bun run bench:structures
 ## Development
 
 ```bash
+bun install
 bun test --coverage
 bun run build:all
 bunx playwright install --with-deps chromium
