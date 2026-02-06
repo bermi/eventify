@@ -114,6 +114,41 @@ Suite: trailing wildcard only
 Decision
 Keep precomputed segment matching for correctness and overall speed across mixed patterns. Prefix-only checks are faster for trailing-only patterns but do not cover middle wildcards.
 
+## Iteration 7 - Hybrid prefix matcher for trailing wildcards
+
+Change
+Precompile trailing-wildcard-only patterns to prefix matchers while keeping segment matching for mixed wildcards.
+
+Results (eventify microbench)
+| Case | Median (ms) | Ops/s |
+| --- | --- | --- |
+| trigger (no listeners) | 1.723 | 29,017,755 |
+| trigger (1 listener) | 6.185 | 8,084,019 |
+| trigger (10 listeners) | 22.503 | 2,221,918 |
+| trigger (all listener) | 6.519 | 7,669,348 |
+| trigger (pattern match) | 21.779 | 2,295,768 |
+| on/off (100 listeners) | 0.109 | 1,841,197 |
+| listenTo/stopListening | 0.141 | 711,111 |
+
+Results (patterns=300, events=900)
+Suite: mixed wildcards
+| Strategy | Median (ms) | Ops/s |
+| --- | --- | --- |
+| segments (precomputed) | 4.429 | 60,968,147 |
+| split per match | 94.170 | 2,867,156 |
+| regex (compiled) | 9.993 | 27,018,575 |
+
+Suite: trailing wildcard only
+| Strategy | Median (ms) | Ops/s |
+| --- | --- | --- |
+| segments (precomputed) | 5.353 | 50,437,828 |
+| split per match | 87.348 | 3,091,072 |
+| regex (compiled) | 15.264 | 17,689,162 |
+| prefix (trailing `*`) | 3.616 | 74,660,399 |
+
+Decision
+Use prefix matching for trailing-only wildcard patterns and keep segment matching for mixed wildcards.
+
 ## Summary
 
-Kept precomputed pattern segments and the `listeningTo` Set. The `isPatternName` fast path keeps wildcard-free paths cheap. Map remains the best fit for event storage based on the structure microbench, and segment matching stays the best all-around pattern strategy.
+Kept precomputed pattern segments and the `listeningTo` Set. The `isPatternName` fast path keeps wildcard-free paths cheap. Map remains the best fit for event storage based on the structure microbench, and the runtime now uses a hybrid pattern matcher: prefix checks for trailing-only wildcards and segment matching for mixed wildcards.

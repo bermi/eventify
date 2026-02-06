@@ -176,12 +176,23 @@ function addListener(emitter, name, callback, context) {
   if (isPatternName(state, name)) {
     const segments = splitName(name, state.namespaceDelimiter);
     const trailingWildcard = segments[segments.length - 1] === state.wildcard;
-    state.patterns.push({
-      ...entry,
-      pattern: name,
-      segments,
-      trailingWildcard
-    });
+    const hasInternalWildcard = segments.slice(0, -1).includes(state.wildcard);
+    if (trailingWildcard && !hasInternalWildcard) {
+      state.patterns.push({
+        ...entry,
+        pattern: name,
+        match: "prefix",
+        prefix: name.slice(0, Math.max(0, name.length - state.wildcard.length))
+      });
+    } else {
+      state.patterns.push({
+        ...entry,
+        pattern: name,
+        match: "segments",
+        segments,
+        trailingWildcard
+      });
+    }
     return;
   }
   const list = state.events.get(name);
@@ -292,7 +303,7 @@ var proto = {
     const eventSnapshot = state.events.get(eventName)?.slice() ?? null;
     const patternSnapshot = state.patterns.length ? state.patterns.slice() : null;
     const allSnapshot = state.all.length ? state.all.slice() : null;
-    const eventSegments = patternSnapshot ? splitName(eventName, state.namespaceDelimiter) : null;
+    let eventSegments = null;
     if (eventSnapshot) {
       for (const entry of eventSnapshot) {
         safeCall(state, entry.callback, entry.ctx, validatedArgs, {
@@ -303,10 +314,19 @@ var proto = {
         });
       }
     }
-    if (patternSnapshot && eventSegments) {
+    if (patternSnapshot) {
       for (const entry of patternSnapshot) {
-        if (!matchesPatternSegments(state, entry, eventSegments)) {
-          continue;
+        if (entry.match === "prefix") {
+          if (!eventName.startsWith(entry.prefix)) {
+            continue;
+          }
+        } else {
+          if (!eventSegments) {
+            eventSegments = splitName(eventName, state.namespaceDelimiter);
+          }
+          if (!matchesPatternSegments(state, entry, eventSegments)) {
+            continue;
+          }
         }
         safeCall(state, entry.callback, entry.ctx, validatedArgs, {
           event: eventName,
@@ -489,5 +509,5 @@ export {
   Eventify
 };
 
-//# debugId=2A7003CC9890AA8964756E2164756E21
+//# debugId=9E2160D6D493EC8764756E2164756E21
 //# sourceMappingURL=index.js.map

@@ -435,6 +435,26 @@ describe("Eventify", () => {
       expect(calls).toBe(0);
     });
 
+    it("does not match shorter events for trailing wildcard with internal wildcard", () => {
+      const emitter = createEmitter();
+      let calls = 0;
+      emitter.on("/a/*/c/*", () => {
+        calls += 1;
+      });
+      emitter.trigger("/a/b");
+      expect(calls).toBe(0);
+    });
+
+    it("matches trailing wildcard patterns with internal wildcards", () => {
+      const emitter = createEmitter();
+      let calls = 0;
+      emitter.on("/a/*/c/*", () => {
+        calls += 1;
+      });
+      emitter.trigger("/a/b/c/d");
+      expect(calls).toBe(1);
+    });
+
     it("does not match when segment counts differ without trailing wildcard", () => {
       const emitter = createEmitter();
       let calls = 0;
@@ -452,6 +472,16 @@ describe("Eventify", () => {
         calls += 1;
       });
       emitter.trigger("/a/x/c");
+      expect(calls).toBe(0);
+    });
+
+    it("does not match when internal wildcard pattern has static mismatch", () => {
+      const emitter = createEmitter();
+      let calls = 0;
+      emitter.on("/a/*/c", () => {
+        calls += 1;
+      });
+      emitter.trigger("/a/b/d");
       expect(calls).toBe(0);
     });
 
