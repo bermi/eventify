@@ -1,4 +1,4 @@
-/* Eventify v3 - EventTarget-first, type-safe, schema-optional */
+/* Eventify v3 - type-safe, schema-optional */
 
 export type EventMap = Record<string, unknown>;
 
@@ -240,7 +240,7 @@ type EmitterState = {
   events: Map<string, ListenerEntry[]>;
   patterns: PatternEntry[];
   all: ListenerEntry[];
-  listeningTo: Map<string, EventifyEmitter<any>>;
+  listeningTo: Set<EventifyEmitter<any>>;
   schemas: SchemaMap | undefined;
   validate: SchemaValidator | undefined;
   onError: ErrorHandler<any>;
@@ -251,18 +251,6 @@ type EmitterState = {
 const eventSplitter = /\s+/;
 
 const stateByEmitter = new WeakMap<object, EmitterState>();
-const listenerIds = new WeakMap<object, string>();
-let listenerIdCounter = 0;
-
-function getListenerId(obj: object): string {
-  const existing = listenerIds.get(obj);
-  if (existing) {
-    return existing;
-  }
-  const id = `l${++listenerIdCounter}`;
-  listenerIds.set(obj, id);
-  return id;
-}
 
 function noop(): void {}
 
@@ -343,7 +331,7 @@ function getState(target: object, options?: EventifyOptions): EmitterState {
       events: new Map(),
       patterns: [],
       all: [],
-      listeningTo: new Map(),
+      listeningTo: new Set(),
       schemas: options?.schemas,
       validate: options?.validate,
       onError: options?.onError ?? noop,
@@ -420,15 +408,16 @@ function isPatternName(state: EmitterState, name: string): boolean {
   if (!wildcard) {
     return false;
   }
+  if (name.indexOf(wildcard) === -1) {
+    return false;
+  }
   const delimiter = state.namespaceDelimiter;
   const segments = splitName(name, delimiter);
   return segments.includes(wildcard);
 }
 
-function matchesPattern(state: EmitterState, entry: PatternEntry, eventName: string): boolean {
-  const delimiter = state.namespaceDelimiter;
+function matchesPatternSegments(state: EmitterState, entry: PatternEntry, eventSegments: string[]): boolean {
   const wildcard = state.wildcard;
-  const eventSegments = splitName(eventName, delimiter);
   const patternSegments = entry.segments;
   const patternLength = patternSegments.length;
   const eventLength = eventSegments.length;
@@ -611,6 +600,7 @@ const proto: EventifyEmitter<any> = {
     const eventSnapshot = state.events.get(eventName)?.slice() ?? null;
     const patternSnapshot = state.patterns.length ? state.patterns.slice() : null;
     const allSnapshot = state.all.length ? state.all.slice() : null;
+    const eventSegments = patternSnapshot ? splitName(eventName, state.namespaceDelimiter) : null;
 
     if (eventSnapshot) {
       for (const entry of eventSnapshot) {
@@ -623,9 +613,9 @@ const proto: EventifyEmitter<any> = {
       }
     }
 
-    if (patternSnapshot) {
+    if (patternSnapshot && eventSegments) {
       for (const entry of patternSnapshot) {
-        if (!matchesPattern(state, entry, eventName)) {
+        if (!matchesPatternSegments(state, entry, eventSegments)) {
           continue;
         }
         safeCall(state, entry.callback, entry.ctx, validatedArgs, {
@@ -664,8 +654,7 @@ const proto: EventifyEmitter<any> = {
       return this;
     }
     const state = getState(this);
-    const id = getListenerId(obj);
-    state.listeningTo.set(id, obj as EventifyEmitter<any>);
+    state.listeningTo.add(obj as EventifyEmitter<any>);
     if (typeof name === 'object') {
       callback = this;
     }
@@ -678,8 +667,7 @@ const proto: EventifyEmitter<any> = {
       return this;
     }
     const state = getState(this);
-    const id = getListenerId(obj);
-    state.listeningTo.set(id, obj as EventifyEmitter<any>);
+    state.listeningTo.add(obj as EventifyEmitter<any>);
     if (typeof name === 'object') {
       callback = this;
     }
@@ -707,8 +695,7 @@ const proto: EventifyEmitter<any> = {
     for (const target of targets) {
       (target as any).off(name, callback, this);
       if (deleteListener) {
-        const id = getListenerId(target as object);
-        state.listeningTo.delete(id);
+        state.listeningTo.delete(target);
       }
     }
     if (deleteListener && !obj) {

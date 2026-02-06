@@ -1,17 +1,17 @@
 # Eventify
 
-Eventify is a tiny, EventTarget-first event emitter with strict TypeScript types and optional runtime validation.
+Eventify is a tiny, zero-dependency event emitter with strict TypeScript types, wildcard namespaces, and optional runtime validation.
 
-The goal is a modern, minimal DX that keeps the original Eventify ergonomics while leaning on standard platform APIs.
+The goal is a modern, minimal DX that keeps the original Eventify ergonomics while preserving Backbone-style semantics (`all`, listener snapshots, predictable ordering).
 
 ## Design Goals
 
 - Keep the original Eventify surface (`on`, `once`, `off`, `trigger`, `listenTo`, `listenToOnce`, `stopListening`).
-- Be EventTarget-first internally for consistent behavior across browsers, Node, and Bun.
 - Ship zero runtime dependencies and optional schema validation via DI.
 - Stay small and tree-shakeable (ESM only).
 - Support namespaced events with wildcards (e.g. `namespace:foo:*` or `/product/foo/*`).
 - Allow configurable namespace delimiter (default `/`).
+- Preserve original semantics: snapshot listeners at emit time and support `"all"`.
 
 ## Install
 
@@ -134,6 +134,8 @@ type EventifyOptions = {
 const emitter = Eventify.create(options);
 ```
 
+If `schemas` are provided and `validate` is omitted, `defaultSchemaValidator` is used automatically.
+
 ## "all" Event
 
 Listeners bound to `"all"` are called for every event and receive the event name as the first argument.
@@ -178,6 +180,14 @@ emitter.trigger("ready");
 
 const { value } = await all.next();
 // value -> ["ready"]
+```
+
+Abort iteration with an `AbortSignal`:
+
+```ts
+const controller = new AbortController();
+const iterator = emitter.iterate("data", { signal: controller.signal });
+controller.abort();
 ```
 
 ## Error Handling
@@ -316,10 +326,28 @@ iterate(event, [options])
 
 ## Notes
 
-- `CustomEvent.detail` always stores event args as an array to preserve `trigger("event", ...args)` semantics.
+- Dispatch order is event listeners, then matching patterns, then `"all"`.
+- Listener lists are snapshotted at trigger time; changes during a dispatch do not affect the current cycle.
+- Implementation uses a lightweight internal dispatcher (not native `EventTarget`) to preserve Eventify/Backbone semantics.
 - `"all"` is a compatibility feature (Backbone/Eventify style); it is not a standard EventTarget concept.
 - Duplicate registrations are allowed; the same callback can be invoked multiple times if registered multiple times.
 - This is ESM-only. Builds are tree-shakeable.
+
+## Benchmarks
+
+Microbenchmarks live in `BENCHMARKS.md`.
+
+```bash
+bun run bench
+bun run bench:structures
+```
+
+## Development
+
+```bash
+bun test --coverage
+bun run build:all
+```
 
 ## License
 

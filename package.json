@@ -1,7 +1,7 @@
 {
   "name": "eventify",
   "version": "3.0.0",
-  "description": "EventTarget-first event emitter with strict TypeScript typings and optional schema validation.",
+  "description": "Tiny event emitter with strict TypeScript typings and optional schema validation.",
   "author": "Bermi Ferrer <bermi@bermilabs.com>",
   "license": "MIT",
   "type": "module",
@@ -9,11 +9,13 @@
     "event",
     "eventify",
     "events",
-    "EventTarget",
-    "CustomEvent",
     "observer",
     "emit",
-    "trigger"
+    "trigger",
+    "wildcard",
+    "typed",
+    "schema",
+    "backbone"
   ],
   "engines": {
     "node": ">=20"
@@ -40,6 +42,8 @@
     "build": "bun build src/index.ts --outdir dist --entry-naming \"[name].js\" --format esm --target=browser --sourcemap=linked",
     "build:types": "bun x tsc -p tsconfig.types.json",
     "build:all": "bun run build && bun run build:types",
+    "bench": "bun run bench/bench.ts",
+    "bench:structures": "bun run bench/structures.ts",
     "test": "bun test",
     "test:watch": "bun test --watch"
   },
