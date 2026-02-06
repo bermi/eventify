@@ -20,6 +20,9 @@ jobs:
       - name: Unit tests (Bun)
         run: bun test --coverage
 
+      - name: Type tests (tsc)
+        run: bun run typecheck:tests
+
       - name: Install Playwright browsers
         run: bunx playwright install --with-deps chromium
 

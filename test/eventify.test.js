@@ -1206,6 +1206,88 @@ describe("Eventify", () => {
       emitter.trigger("boom");
       expect(errors.length).toBe(1);
     });
+
+    it("validates with zod-style parse", () => {
+      const schemas = {
+        user: {
+          parse: (value) => {
+            if (!value || typeof value.id !== "string") {
+              throw new Error("ZodError");
+            }
+            return { id: value.id };
+          },
+          safeParse: () => ({ success: false, error: new Error("safeParse should not run") }),
+        },
+        coords: {
+          parse: (value) => {
+            if (!Array.isArray(value) || value.length !== 2) {
+              throw new Error("ZodError");
+            }
+            const [x, y] = value;
+            if (typeof x !== "number" || typeof y !== "number") {
+              throw new Error("ZodError");
+            }
+            return [x, y];
+          },
+          safeParse: () => ({ success: false, error: new Error("safeParse should not run") }),
+        },
+      };
+      const emitter = createEmitter({
+        schemas,
+        validate: setDefaultSchemaValidator,
+      });
+      let seen;
+      let coords;
+      emitter.on("user", (value) => {
+        seen = value;
+      });
+      emitter.on("coords", (x, y) => {
+        coords = [x, y];
+      });
+
+      emitter.trigger("user", { id: "ok" });
+      emitter.trigger("coords", 2, 3);
+
+      expect(seen).toEqual({ id: "ok" });
+      expect(coords).toEqual([2, 3]);
+    });
+
+    it("throws for invalid zod-style payloads", () => {
+      const schemas = {
+        user: {
+          parse: (value) => {
+            if (!value || typeof value.id !== "string") {
+              throw new Error("ZodError");
+            }
+            return { id: value.id };
+          },
+          safeParse: () => ({ success: false, error: new Error("safeParse should not run") }),
+        },
+      };
+      const emitter = createEmitter({
+        schemas,
+        validate: setDefaultSchemaValidator,
+      });
+
+      expect(() => emitter.trigger("user", { id: 123 })).toThrow();
+    });
+
+    it("prefers parse over safeParse when both are present", () => {
+      const schema = {
+        parse: (value) => String(value).toUpperCase(),
+        safeParse: () => ({ success: false, error: new Error("safeParse should not run") }),
+      };
+      const emitter = createEmitter({
+        schemas: { shout: schema },
+        validate: setDefaultSchemaValidator,
+      });
+      let seen;
+      emitter.on("shout", (value) => {
+        seen = value;
+      });
+      emitter.trigger("shout", "hello");
+      expect(seen).toBe("HELLO");
+    });
   });
 
   describe("Async iterator", () => {
