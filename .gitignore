@@ -1,6 +1,8 @@
 .DS_Store
 node_modules
 npm-debug.log
+coverage/
+*.lcov
 test/coverage.html
 dist/eventify.js
 lib-cov

@@ -416,9 +416,6 @@ function splitName(name: string, delimiter: string): string[] {
 }
 
 function isPatternName(state: EmitterState, name: string): boolean {
-  if (name === 'all') {
-    return false;
-  }
   const wildcard = state.wildcard;
   if (!wildcard) {
     return false;
@@ -497,16 +494,11 @@ function addListener(
 }
 
 function removeListener(
-  emitter: object,
+  state: EmitterState,
   name: string,
   callback?: CallbackWithOriginal | null,
   context?: unknown
 ): void {
-  const state = getExistingState(emitter);
-  if (!state) {
-    return;
-  }
-
   const matches = (entry: ListenerEntry): boolean => {
     const cb = callback as CallbackWithOriginal | null | undefined;
     const cbMatches = !cb || cb === entry.callback || cb === entry.callback._callback;
@@ -599,7 +591,7 @@ const proto: EventifyEmitter<any> = {
     ];
 
     for (const eventName of names) {
-      removeListener(this, eventName, callback as CallbackWithOriginal, context);
+      removeListener(state, eventName, callback as CallbackWithOriginal, context);
     }
     return this;
   },

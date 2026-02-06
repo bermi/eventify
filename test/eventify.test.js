@@ -22,6 +22,20 @@ describe("Eventify", () => {
     });
   });
 
+  describe("proto noops", () => {
+    it("trigger is a noop on plain objects", () => {
+      const target = {};
+      const result = Eventify.proto.trigger.call(target, "event");
+      expect(result).toBe(target);
+    });
+
+    it("stopListening is a noop on plain objects", () => {
+      const target = {};
+      const result = Eventify.proto.stopListening.call(target);
+      expect(result).toBe(target);
+    });
+  });
+
   describe("when enabling events using Eventify.enable, it:", () => {
     it("should add the Events mixin to passed prototype", () => {
       const target = {};
@@ -210,35 +224,48 @@ describe("Eventify", () => {
     it("listenTo and stopListening with event maps", () => {
       const a = Eventify.enable({});
       const b = Eventify.enable({});
-      const cb = () => {
-        expect(true).toBe(true);
+      let listenCalls = 0;
+      let directCalls = 0;
+      const listenCb = () => {
+        listenCalls += 1;
       };
-      a.listenTo(b, { event: cb });
+      const directCb = () => {
+        directCalls += 1;
+      };
+      a.listenTo(b, { event: listenCb });
       b.trigger("event");
-      a.listenTo(b, { event2: cb });
-      b.on("event2", cb);
-      a.stopListening(b, { event2: cb });
+      expect(listenCalls).toBe(1);
+      a.listenTo(b, { event2: listenCb });
+      b.on("event2", directCb);
+      a.stopListening(b, { event2: listenCb });
       b.trigger("event event2");
+      expect(listenCalls).toBe(2);
+      expect(directCalls).toBe(1);
       a.stopListening();
       b.trigger("event event2");
+      expect(listenCalls).toBe(2);
+      expect(directCalls).toBe(2);
     });
 
     it("stopListening with omitted args", () => {
       const a = Eventify.enable({});
       const b = Eventify.enable({});
+      let calls = 0;
       const cb = () => {
-        expect(true).toBe(true);
+        calls += 1;
       };
       a.listenTo(b, "event", cb);
-      b.on("event", cb);
       a.listenTo(b, "event2", cb);
       a.stopListening(null, { event: cb });
       b.trigger("event event2");
-      b.off();
+      expect(calls).toBe(1);
+      a.stopListening(null, "event2");
+      b.trigger("event event2");
+      expect(calls).toBe(1);
       a.listenTo(b, "event event2", cb);
-      a.stopListening(null, "event");
       a.stopListening();
       b.trigger("event2");
+      expect(calls).toBe(1);
     });
 
     it("listenToOnce and stopListening", () => {
@@ -297,27 +324,60 @@ describe("Eventify", () => {
 
     it("listenTo yourself", () => {
       const e = Eventify.enable({});
+      let calls = 0;
       e.listenTo(e, "foo", () => {
-        expect(true).toBe(true);
+        calls += 1;
       });
       e.trigger("foo");
+      expect(calls).toBe(1);
     });
 
     it("listenTo yourself cleans yourself up with stopListening", () => {
       const e = Eventify.enable({});
+      let calls = 0;
       e.listenTo(e, "foo", () => {
-        expect(true).toBe(true);
+        calls += 1;
       });
       e.trigger("foo");
       e.stopListening();
       e.trigger("foo");
+      expect(calls).toBe(1);
     });
 
     it("listenTo with empty callback doesn't throw an error", () => {
       const e = Eventify.enable({});
-      e.listenTo(e, "foo", null);
+      const result = e.listenTo(e, "foo", null);
       e.trigger("foo");
-      expect(true).toBe(true);
+      expect(result).toBe(e);
+    });
+
+    it("listenTo with missing target is a noop", () => {
+      const e = Eventify.enable({});
+      const result = e.listenTo(null, "foo", () => {});
+      expect(result).toBe(e);
+    });
+
+    it("listenToOnce with missing target is a noop", () => {
+      const e = Eventify.enable({});
+      const result = e.listenToOnce(null, "foo", () => {});
+      expect(result).toBe(e);
+    });
+
+    it("listenToOnce supports event maps and binds context", () => {
+      const a = Eventify.enable({});
+      const b = Eventify.enable({});
+      let calls = 0;
+      let bound;
+      a.listenToOnce(b, {
+        ping: function () {
+          calls += 1;
+          bound = this;
+        },
+      });
+      b.trigger("ping");
+      b.trigger("ping");
+      expect(calls).toBe(1);
+      expect(bound).toBe(a);
     });
   });
 
@@ -363,6 +423,64 @@ describe("Eventify", () => {
       });
       emitter.trigger("namespace:foo:bar");
       expect(called).toBe(true);
+    });
+
+    it("does not match shorter events for trailing wildcard patterns", () => {
+      const emitter = Eventify.create();
+      let calls = 0;
+      emitter.on("/a/b/*", () => {
+        calls += 1;
+      });
+      emitter.trigger("/a/b");
+      expect(calls).toBe(0);
+    });
+
+    it("does not match when segment counts differ without trailing wildcard", () => {
+      const emitter = Eventify.create();
+      let calls = 0;
+      emitter.on("/a/*/c", () => {
+        calls += 1;
+      });
+      emitter.trigger("/a/b/c/d");
+      expect(calls).toBe(0);
+    });
+
+    it("does not match when static segments differ", () => {
+      const emitter = Eventify.create();
+      let calls = 0;
+      emitter.on("/a/b/*", () => {
+        calls += 1;
+      });
+      emitter.trigger("/a/x/c");
+      expect(calls).toBe(0);
+    });
+
+    it("treats wildcard as a literal when disabled", () => {
+      const emitter = Eventify.create({ wildcard: "" });
+      let calls = 0;
+      emitter.on("a*b", () => {
+        calls += 1;
+      });
+      emitter.trigger("a*b");
+      emitter.trigger("axb");
+      expect(calls).toBe(1);
+    });
+
+    it("off removes pattern listeners", () => {
+      const emitter = Eventify.create();
+      let calls = 0;
+      const cb = () => {
+        calls += 1;
+      };
+      const other = () => {
+        calls += 10;
+      };
+      emitter.on("/a/b/*", cb);
+      emitter.on("/a/c/*", other);
+      emitter.off("/a/b/*", cb);
+      emitter.trigger("/a/b/c");
+      emitter.trigger("/a/c/d");
+      expect(calls).toBe(10);
     });
   });
 
@@ -447,14 +565,14 @@ describe("Eventify", () => {
   describe("bind a callback with a supplied context", () => {
     it("should bind `this` to the callback", () => {
       function TestClass() {}
-      TestClass.prototype.assertTrue = function () {
-        expect(true).toBe(true);
-      };
       const obj = Eventify.enable();
+      const context = new TestClass();
+      let bound;
       obj.on("event", function () {
-        this.assertTrue();
-      }, new TestClass());
+        bound = this;
+      }, context);
       obj.trigger("event");
+      expect(bound).toBe(context);
     });
   });
 
@@ -524,8 +642,16 @@ describe("Eventify", () => {
     });
   });
 
-  describe("if no callback is provided, `on` is a noop", () => {
-    Eventify.enable().on("test").trigger("test");
+  it("if no callback is provided, `on` is a noop", () => {
+    const emitter = Eventify.enable();
+    let calls = 0;
+    const result = emitter.on("test");
+    emitter.on("test", () => {
+      calls += 1;
+    });
+    emitter.trigger("test");
+    expect(result).toBe(emitter);
+    expect(calls).toBe(1);
   });
 
   it("routes listener errors to onError instead of throwing", () => {
@@ -534,49 +660,79 @@ describe("Eventify", () => {
       onError: (error) => {
         errors.push(error);
       },
-    }).on("test", "noop");
+    });
+    view.on("test", () => {
+      throw new Error("boom");
+    });
 
     view.trigger("test");
     expect(errors.length).toBe(1);
+    expect(errors[0]).toBeInstanceOf(Error);
+  });
+
+  it("swallows listener errors when no onError is provided", () => {
+    const emitter = Eventify.create();
+    emitter.on("boom", () => {
+      throw new Error("boom");
+    });
+    expect(() => emitter.trigger("boom")).not.toThrow();
+  });
+
+  it("routes rejected listener promises to onError", async () => {
+    const errors = [];
+    const view = Eventify.create({
+      onError: (error) => {
+        errors.push(error);
+      },
+    });
+    view.on("async", () => Promise.reject(new Error("async boom")));
+
+    view.trigger("async");
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(errors.length).toBe(1);
+    expect(errors[0]).toBeInstanceOf(Error);
   });
 
   describe("remove all events for a specific context", () => {
     it("should remove context", () => {
       const obj = Eventify.enable();
-      obj.on("x y all", () => {
-        expect(true).toBe(true);
-      });
+      const context = {};
+      let keptCalls = 0;
       let removedCalls = 0;
+      obj.on("x all", () => {
+        keptCalls += 1;
+      });
       obj.on(
-        "x y all",
+        "x all",
         () => {
           removedCalls += 1;
         },
-        obj
+        context
       );
-      obj.off(null, null, obj);
-      obj.trigger("x y");
+      obj.off(null, null, context);
+      obj.trigger("x");
       expect(removedCalls).toBe(0);
+      expect(keptCalls).toBe(2);
     });
   });
 
   describe("remove all events for a specific callback", () => {
     it("should remove callback", () => {
       const obj = Eventify.enable();
-
-      function success() {
-        expect(true).toBe(true);
-      }
-
+      let successCalls = 0;
       let failCalls = 0;
+      function success() {
+        successCalls += 1;
+      }
       function fail() {
         failCalls += 1;
       }
-      obj.on("x y all", success);
-      obj.on("x y all", fail);
+      obj.on("x all", success);
+      obj.on("x all", fail);
       obj.off(null, fail);
-      obj.trigger("x y");
+      obj.trigger("x");
       expect(failCalls).toBe(0);
+      expect(successCalls).toBe(2);
     });
   });
 
@@ -589,6 +745,12 @@ describe("Eventify", () => {
       obj.on("event", () => {}, obj);
       expect(obj.off("event") === obj).toBe(true);
     });
+  });
+
+  it("off is a noop for unknown events", () => {
+    const obj = Eventify.enable();
+    const result = obj.off("missing");
+    expect(result).toBe(obj);
   });
 
   describe("#1310 - off does not skip consecutive events", () => {
@@ -634,36 +796,52 @@ describe("Eventify", () => {
     });
 
     it("once variant one", () => {
-      const f = () => {
-        expect(true).toBe(true);
-      };
-      const a = Eventify.enable({}).once("event", f);
-      const b = Eventify.enable({}).on("event", f);
+      let onceCalls = 0;
+      let onCalls = 0;
+      const a = Eventify.enable({}).once("event", () => {
+        onceCalls += 1;
+      });
+      const b = Eventify.enable({}).on("event", () => {
+        onCalls += 1;
+      });
 
+      a.trigger("event");
       a.trigger("event");
 
       b.trigger("event");
       b.trigger("event");
+      expect(onceCalls).toBe(1);
+      expect(onCalls).toBe(2);
     });
 
     it("once variant two", () => {
-      const f = () => {
-        expect(true).toBe(true);
-      };
+      let onceCalls = 0;
+      let onCalls = 0;
       const obj = Eventify.enable({});
-
-      obj.once("event", f).on("event", f).trigger("event").trigger("event");
+      obj
+        .once("event", () => {
+          onceCalls += 1;
+        })
+        .on("event", () => {
+          onCalls += 1;
+        })
+        .trigger("event")
+        .trigger("event");
+      expect(onceCalls).toBe(1);
+      expect(onCalls).toBe(2);
     });
 
     it("once with off", () => {
+      let calls = 0;
       const f = () => {
-        expect(true).toBe(true);
+        calls += 1;
       };
       const obj = Eventify.enable({});
 
       obj.once("event", f);
       obj.off("event", f);
       obj.trigger("event");
+      expect(calls).toBe(0);
     });
 
     it("once with event maps", () => {
@@ -709,21 +887,24 @@ describe("Eventify", () => {
     });
 
     it("once with asynchronous events", async () => {
+      let calls = 0;
       const obj = Eventify.enable({}).once("async", () => {
-        // noop
+        calls += 1;
       });
       obj.trigger("async");
       obj.trigger("async");
       await new Promise((resolve) => setTimeout(resolve, 10));
-      expect(true).toBe(true);
+      expect(calls).toBe(1);
     });
 
     it("once with multiple events.", () => {
       const obj = Eventify.enable({});
+      let calls = 0;
       obj.once("x y", () => {
-        expect(true).toBe(true);
+        calls += 1;
       });
       obj.trigger("x y");
+      expect(calls).toBe(2);
     });
 
     it("Off during iteration with once.", () => {
@@ -732,17 +913,28 @@ describe("Eventify", () => {
         this.off("event", f);
       };
       obj.on("event", f);
-      obj.once("event", () => {});
+      let calls = 0;
+      obj.once("event", () => {
+        calls += 1;
+      });
       obj.on("event", () => {
-        expect(true).toBe(true);
+        calls += 10;
       });
 
       obj.trigger("event");
       obj.trigger("event");
+      expect(calls).toBe(21);
     });
 
     it("once without a callback is a noop", () => {
-      Eventify.enable({}).once("event").trigger("event");
+      const obj = Eventify.enable({});
+      let calls = 0;
+      obj.once("event");
+      obj.on("event", () => {
+        calls += 1;
+      });
+      obj.trigger("event");
+      expect(calls).toBe(1);
     });
   });
 
@@ -759,7 +951,68 @@ describe("Eventify", () => {
     });
   });
 
+  describe("defaultSchemaValidator", () => {
+    it("supports safeParse success", () => {
+      const schema = {
+        safeParse: (value) => ({ success: true, data: String(value).toUpperCase() }),
+      };
+      const result = defaultSchemaValidator(schema, "ok", { event: "test" });
+      expect(result).toBe("OK");
+    });
+
+    it("throws when safeParse fails", () => {
+      const error = new Error("bad");
+      const schema = {
+        safeParse: () => ({ success: false, error }),
+      };
+      expect(() => defaultSchemaValidator(schema, "ok", { event: "test" })).toThrow(error);
+    });
+
+    it("throws when schema has no parser", () => {
+      expect(() => defaultSchemaValidator({}, "ok", { event: "test" })).toThrow(TypeError);
+    });
+  });
+
   describe("Schema validation", () => {
+    it("uses default validator when validate is omitted", () => {
+      const schema = {
+        parse: (value) => String(value).toUpperCase(),
+      };
+      const emitter = Eventify.create({
+        schemas: { shout: schema },
+      });
+      let seen;
+      emitter.on("shout", (value) => {
+        seen = value;
+      });
+      emitter.trigger("shout", "hello");
+      expect(seen).toBe("HELLO");
+    });
+
+    it("skips validation for events without a schema", () => {
+      let validateCalls = 0;
+      const schema = {
+        parse: () => {
+          throw new Error("should not validate");
+        },
+      };
+      const validate = () => {
+        validateCalls += 1;
+        return "ok";
+      };
+      const emitter = Eventify.create({
+        schemas: { known: schema },
+        validate,
+      });
+      let seen;
+      emitter.on("unknown", (value) => {
+        seen = value;
+      });
+      emitter.trigger("unknown", 123);
+      expect(validateCalls).toBe(0);
+      expect(seen).toBe(123);
+    });
+
     it("validates and transforms payloads on emit", () => {
       const schema = {
         parse: (value) => {
@@ -782,6 +1035,41 @@ describe("Eventify", () => {
       emitter.trigger("shout", "hello");
     });
 
+    it("validates empty payloads", () => {
+      let received;
+      const schema = {
+        parse: (value) => {
+          received = value;
+          return "ok";
+        },
+      };
+      const emitter = Eventify.create({
+        schemas: { empty: schema },
+      });
+      let args = null;
+      emitter.on("empty", (...eventArgs) => {
+        args = eventArgs;
+      });
+      emitter.trigger("empty");
+      expect(received).toBeUndefined();
+      expect(args).toEqual([]);
+    });
+
+    it("accepts tuple schemas for multi-arg events", () => {
+      const schema = {
+        parse: (value) => [value[0] * 2, value[1] * 3],
+      };
+      const emitter = Eventify.create({
+        schemas: { coords: schema },
+      });
+      let result = null;
+      emitter.on("coords", (x, y) => {
+        result = [x, y];
+      });
+      emitter.trigger("coords", 2, 3);
+      expect(result).toEqual([4, 9]);
+    });
+
     it("throws when schema validation fails", () => {
       const schema = {
         parse: (value) => {
@@ -798,6 +1086,69 @@ describe("Eventify", () => {
       });
 
       expect(() => emitter.trigger("count", "nope")).toThrow();
+    });
+
+    it("throws when multi-arg schema returns non-array", () => {
+      const schema = {
+        parse: () => "nope",
+      };
+      const emitter = Eventify.create({
+        schemas: { multi: schema },
+      });
+      expect(() => emitter.trigger("multi", 1, 2)).toThrow(TypeError);
+    });
+
+    it("applies default validator when schemas are added later", () => {
+      const emitter = Eventify.create();
+      const schema = {
+        parse: (value) => String(value).toUpperCase(),
+      };
+      Eventify.enable(emitter, { schemas: { shout: schema } });
+      let seen;
+      emitter.on("shout", (value) => {
+        seen = value;
+      });
+      emitter.trigger("shout", "later");
+      expect(seen).toBe("LATER");
+    });
+
+    it("updates schema and options on existing emitters", () => {
+      const emitter = Eventify.create();
+      const schema = {
+        parse: (value) => value,
+      };
+      let validateCalls = 0;
+      const validate = (currentSchema, payload) => {
+        validateCalls += 1;
+        return currentSchema.parse(payload);
+      };
+      const errors = [];
+      Eventify.enable(emitter, {
+        validate,
+        onError: (error) => {
+          errors.push(error);
+        },
+        namespaceDelimiter: ":",
+        wildcard: "~",
+      });
+      Eventify.enable(emitter, { schemas: { ping: schema } });
+
+      let patternCalls = 0;
+      emitter.on("ns:foo:~", () => {
+        patternCalls += 1;
+      });
+      emitter.trigger("ns:foo:bar");
+      expect(patternCalls).toBe(1);
+
+      emitter.on("ping", () => {});
+      emitter.trigger("ping", "ok");
+      expect(validateCalls).toBe(1);
+
+      emitter.on("boom", () => {
+        throw new Error("boom");
+      });
+      emitter.trigger("boom");
+      expect(errors.length).toBe(1);
     });
   });
 
@@ -839,6 +1190,74 @@ describe("Eventify", () => {
       expect(result.value).toEqual(["ping"]);
 
       await iterator.return();
+    });
+
+    it("resolves pending next when an event arrives", async () => {
+      const emitter = Eventify.create();
+      const iterator = emitter.iterate("tick");
+      const pending = iterator.next();
+      emitter.trigger("tick", "now");
+      const result = await pending;
+      expect(result.value).toBe("now");
+      await iterator.return();
+    });
+
+    it("resolves pending next when iterator closes", async () => {
+      const emitter = Eventify.create();
+      const iterator = emitter.iterate("tick");
+      const pending = iterator.next();
+      await iterator.return();
+      const result = await pending;
+      expect(result.done).toBe(true);
+      const after = await iterator.next();
+      expect(after.done).toBe(true);
+    });
+
+    it("returns itself as an async iterator", async () => {
+      const emitter = Eventify.create();
+      const iterator = emitter.iterate("tick");
+      expect(iterator[Symbol.asyncIterator]()).toBe(iterator);
+      await iterator.return();
+      await iterator.return();
+    });
+
+    it("stops immediately if the signal is already aborted", async () => {
+      const emitter = Eventify.create();
+      const controller = new AbortController();
+      controller.abort();
+      const iterator = emitter.iterate("tick", { signal: controller.signal });
+      const result = await iterator.next();
+      expect(result.done).toBe(true);
+    });
+
+    it("throws and closes the iterator", async () => {
+      const emitter = Eventify.create();
+      const iterator = emitter.iterate("tick");
+      await expect(iterator.throw(new Error("stop"))).rejects.toThrow("stop");
+      const result = await iterator.next();
+      expect(result.done).toBe(true);
+    });
+
+    it("ignores events after return", async () => {
+      const emitter = Eventify.create();
+      const originalOn = emitter.on;
+      let internalHandler;
+      emitter.on = function (name, callback, context) {
+        if (name === "tick") {
+          internalHandler = callback;
+        }
+        return originalOn.call(this, name, callback, context);
+      };
+      try {
+        const iterator = emitter.iterate("tick");
+        expect(typeof internalHandler).toBe("function");
+        await iterator.return();
+        internalHandler("late");
+        const result = await iterator.next();
+        expect(result.done).toBe(true);
+      } finally {
+        emitter.on = originalOn;
+      }
     });
   });
 });
