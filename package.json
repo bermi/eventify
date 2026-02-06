@@ -36,7 +36,10 @@
     "LICENSE"
   ],
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "check": "bun x tsc -p tsconfig.json --noEmit",
+    "build": "bun build src/index.ts --outdir dist --entry-naming \"[name].js\" --format esm --target=browser --sourcemap=linked",
+    "build:types": "bun x tsc -p tsconfig.types.json",
+    "build:all": "bun run build && bun run build:types",
     "test": "bun test",
     "test:watch": "bun test --watch"
   },

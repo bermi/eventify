@@ -13,10 +13,7 @@
     "useUnknownInCatchVariables": true,
     "verbatimModuleSyntax": true,
     "isolatedModules": true,
-    "declaration": true,
-    "declarationMap": true,
-    "sourceMap": true,
-    "outDir": "dist",
+    "noEmit": true,
     "rootDir": "src",
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true

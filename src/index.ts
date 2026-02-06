@@ -241,8 +241,8 @@ type EmitterState = {
   patterns: PatternEntry[];
   all: ListenerEntry[];
   listeningTo: Map<string, EventifyEmitter<any>>;
-  schemas?: SchemaMap;
-  validate?: SchemaValidator;
+  schemas: SchemaMap | undefined;
+  validate: SchemaValidator | undefined;
   onError: ErrorHandler<any>;
   namespaceDelimiter: string;
   wildcard: string;
@@ -288,7 +288,7 @@ function safeCall(
   try {
     const result = callback.apply(ctx, args);
     if (isPromiseLike(result)) {
-      result.catch((error) => reportError(state, error, meta));
+      result.then(undefined, (error: unknown) => reportError(state, error, meta));
     }
   } catch (error) {
     reportError(state, error, meta);
@@ -339,7 +339,7 @@ export function defaultSchemaValidator(
 function getState(target: object, options?: EventifyOptions): EmitterState {
   let state = stateByEmitter.get(target);
   if (!state) {
-    state = {
+    const created: EmitterState = {
       events: new Map(),
       patterns: [],
       all: [],
@@ -350,11 +350,11 @@ function getState(target: object, options?: EventifyOptions): EmitterState {
       namespaceDelimiter: options?.namespaceDelimiter ?? '/',
       wildcard: options?.wildcard ?? '*',
     };
-    if (options?.schemas && !state.validate) {
-      state.validate = defaultSchemaValidator;
+    if (options?.schemas && !created.validate) {
+      created.validate = defaultSchemaValidator;
     }
-    stateByEmitter.set(target, state);
-    return state;
+    stateByEmitter.set(target, created);
+    return created;
   }
   if (options) {
     if (options.schemas) {
@@ -553,7 +553,7 @@ function removeListener(
 }
 
 const proto: EventifyEmitter<any> = {
-  on(this: object, name: any, callback?: any, context?: unknown) {
+  on(this: EventifyEmitter<any>, name: any, callback?: any, context?: unknown) {
     if (!eventsApi(this, 'on', name, [callback, context]) || !callback) {
       return this;
     }
@@ -561,13 +561,13 @@ const proto: EventifyEmitter<any> = {
     return this;
   },
 
-  once(this: object, name: any, callback?: any, context?: unknown) {
+  once(this: EventifyEmitter<any>, name: any, callback?: any, context?: unknown) {
     if (!eventsApi(this, 'once', name, [callback, context]) || !callback) {
       return this;
     }
     const self = this as any;
     let ran = false;
-    const onceListener: CallbackWithOriginal = function (...args: unknown[]) {
+    const onceListener: CallbackWithOriginal = function (this: unknown, ...args: unknown[]) {
       if (ran) {
         return undefined;
       }
@@ -579,7 +579,7 @@ const proto: EventifyEmitter<any> = {
     return (this as any).on(name, onceListener, context);
   },
 
-  off(this: object, name?: any, callback?: any, context?: unknown) {
+  off(this: EventifyEmitter<any>, name?: any, callback?: any, context?: unknown) {
     const state = getExistingState(this);
     if (!state || !eventsApi(this, 'off', name, [callback, context])) {
       return this;
@@ -604,7 +604,7 @@ const proto: EventifyEmitter<any> = {
     return this;
   },
 
-  trigger(this: object, name: any, ...args: unknown[]) {
+  trigger(this: EventifyEmitter<any>, name: any, ...args: unknown[]) {
     const state = getExistingState(this);
     if (!state) {
       return this;
@@ -659,15 +659,15 @@ const proto: EventifyEmitter<any> = {
     return this;
   },
 
-  emit(this: object, name: any, ...args: unknown[]) {
+  emit(this: EventifyEmitter<any>, name: any, ...args: unknown[]) {
     return (this as any).trigger(name, ...args);
   },
 
-  produce(this: object, name: any, ...args: unknown[]) {
+  produce(this: EventifyEmitter<any>, name: any, ...args: unknown[]) {
     return (this as any).trigger(name, ...args);
   },
 
-  listenTo(this: object, obj: any, name: any, callback?: any) {
+  listenTo(this: EventifyEmitter<any>, obj: any, name: any, callback?: any) {
     if (!obj) {
       return this;
     }
@@ -681,7 +681,7 @@ const proto: EventifyEmitter<any> = {
     return this;
   },
 
-  listenToOnce(this: object, obj: any, name: any, callback?: any) {
+  listenToOnce(this: EventifyEmitter<any>, obj: any, name: any, callback?: any) {
     if (!obj) {
       return this;
     }
@@ -695,7 +695,7 @@ const proto: EventifyEmitter<any> = {
     return this;
   },
 
-  stopListening(this: object, obj?: any, name?: any, callback?: any) {
+  stopListening(this: EventifyEmitter<any>, obj?: any, name?: any, callback?: any) {
     const state = getExistingState(this);
     if (!state) {
       return this;
@@ -725,7 +725,7 @@ const proto: EventifyEmitter<any> = {
     return this;
   },
 
-  iterate(this: object, name: any, options?: IterateOptions) {
+  iterate(this: EventifyEmitter<any>, name: any, options?: IterateOptions): AsyncIterableIterator<any> {
     const emitter = this as any;
     const queue: unknown[] = [];
     let pending: ((value: IteratorResult<unknown>) => void) | null = null;
@@ -769,7 +769,7 @@ const proto: EventifyEmitter<any> = {
       }
     }
 
-    const iterator: AsyncIterableIterator<unknown> = {
+    const iterator: AsyncIterableIterator<any> = {
       [Symbol.asyncIterator]() {
         return iterator;
       },
@@ -827,7 +827,7 @@ export function enable(
 ): object & EventifyEmitter<any> {
   const destination = (target ?? {}) as object & EventifyEmitter<any>;
   for (const method of Object.keys(proto) as Array<keyof EventifyEmitter<any>>) {
-    (destination as EventifyEmitter<any>)[method] = proto[method];
+    (destination as any)[method] = (proto as any)[method];
   }
   getState(destination, options as EventifyOptions);
   return destination;
