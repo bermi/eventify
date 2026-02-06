@@ -4,10 +4,6 @@ npm-debug.log
 bun.lockb
 coverage/
 *.lcov
-test/coverage.html
 playwright-report/
 test-results/
-dist/eventify.js
-lib-cov
-dist/eventify.min.js.zip
 coverage.html

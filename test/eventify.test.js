@@ -693,6 +693,37 @@ describe("Eventify", () => {
     expect(errors[0]).toBeInstanceOf(Error);
   });
 
+  it("routes invalid callbacks to onError and keeps other listeners running", () => {
+    const errors = [];
+    const emitter = Eventify.create({
+      onError: (error) => {
+        errors.push(error);
+      },
+    });
+    let calls = 0;
+    emitter.on("test", () => {
+      calls += 1;
+    });
+    emitter.on("test", "not-a-function");
+
+    expect(() => emitter.trigger("test")).not.toThrow();
+    expect(calls).toBe(1);
+    expect(errors.length).toBe(1);
+    expect(errors[0]).toBeInstanceOf(TypeError);
+  });
+
+  it("swallows errors thrown by onError handlers", () => {
+    const emitter = Eventify.create({
+      onError: () => {
+        throw new Error("onError failed");
+      },
+    });
+    emitter.on("boom", () => {
+      throw new Error("boom");
+    });
+    expect(() => emitter.trigger("boom")).not.toThrow();
+  });
+
   describe("remove all events for a specific context", () => {
     it("should remove context", () => {
       const obj = Eventify.enable();
@@ -1086,6 +1117,31 @@ describe("Eventify", () => {
       });
 
       expect(() => emitter.trigger("count", "nope")).toThrow();
+    });
+
+    it("does not invoke listeners when schema validation fails", () => {
+      const schema = {
+        parse: () => {
+          throw new Error("invalid");
+        },
+      };
+      const emitter = Eventify.create({
+        schemas: { "/fail/count": schema },
+        validate: defaultSchemaValidator,
+      });
+      let calls = 0;
+      emitter.on("/fail/count", () => {
+        calls += 1;
+      });
+      emitter.on("/fail/*", () => {
+        calls += 1;
+      });
+      emitter.on("all", () => {
+        calls += 1;
+      });
+
+      expect(() => emitter.trigger("/fail/count", 1)).toThrow();
+      expect(calls).toBe(0);
     });
 
     it("throws when multi-arg schema returns non-array", () => {

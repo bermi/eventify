@@ -44,10 +44,13 @@
     "build:all": "bun run build && bun run build:types",
     "bench": "bun run bench/bench.ts",
     "bench:structures": "bun run bench/structures.ts",
+    "bench:patterns": "bun run bench/patterns.ts",
     "test": "bun test",
     "test:browser": "bun run build && bunx playwright test",
     "test:all": "bun test --coverage && bun run build && bunx playwright test",
-    "test:watch": "bun test --watch"
+    "test:watch": "bun test --watch",
+    "ci:local": "act -W .github/workflows/ci.yml --container-architecture linux/arm64 && act -W .github/workflows/browser.yml --container-architecture linux/arm64",
+    "publish": "bun run build:all && npm publish"
   },
   "devDependencies": {
     "@playwright/test": "^1.42.0",

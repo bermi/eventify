@@ -5,6 +5,7 @@ These are microbenchmarks to compare internal data-structure and hot-path change
 Command
 `bun run bench`
 `bun run bench:structures`
+`bun run bench:patterns`
 
 Environment
 - Date: 2026-02-06
@@ -89,6 +90,30 @@ Results
 Decision
 Keep `Map` for `events` storage (faster on this workload).
 
+## Iteration 6 - Pattern matching algorithms
+
+Change
+Compare pattern matching strategies for wildcard-heavy workloads.
+
+Results (patterns=300, events=900)
+Suite: mixed wildcards
+| Strategy | Median (ms) | Ops/s |
+| --- | --- | --- |
+| segments (precomputed) | 4.155 | 64,982,606 |
+| split per match | 94.772 | 2,848,954 |
+| regex (compiled) | 9.698 | 27,839,833 |
+
+Suite: trailing wildcard only
+| Strategy | Median (ms) | Ops/s |
+| --- | --- | --- |
+| segments (precomputed) | 5.181 | 52,117,686 |
+| split per match | 80.489 | 3,354,478 |
+| regex (compiled) | 15.189 | 17,775,827 |
+| prefix (trailing `*`) | 3.518 | 76,737,246 |
+
+Decision
+Keep precomputed segment matching for correctness and overall speed across mixed patterns. Prefix-only checks are faster for trailing-only patterns but do not cover middle wildcards.
+
 ## Summary
 
-Kept precomputed pattern segments and the `listeningTo` Set. The `isPatternName` fast path is low risk and keeps wildcard-free paths cheaper. Map remains the best fit for event storage based on the structure microbench.
+Kept precomputed pattern segments and the `listeningTo` Set. The `isPatternName` fast path keeps wildcard-free paths cheap. Map remains the best fit for event storage based on the structure microbench, and segment matching stays the best all-around pattern strategy.
