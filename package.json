@@ -45,9 +45,12 @@
     "bench": "bun run bench/bench.ts",
     "bench:structures": "bun run bench/structures.ts",
     "test": "bun test",
+    "test:browser": "bun run build && bunx playwright test",
+    "test:all": "bun test --coverage && bun run build && bunx playwright test",
     "test:watch": "bun test --watch"
   },
   "devDependencies": {
+    "@playwright/test": "^1.42.0",
     "typescript": "^5.0.0"
   }
 }

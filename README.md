@@ -347,6 +347,9 @@ bun run bench:structures
 ```bash
 bun test --coverage
 bun run build:all
+bunx playwright install --with-deps chromium
+bun run test:browser
+bun run test:all
 ```
 
 ## License
