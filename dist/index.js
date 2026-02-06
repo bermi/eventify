@@ -474,14 +474,20 @@ var Eventify = Object.assign(EventifyInstance, {
   noConflict: () => Eventify,
   defaultSchemaValidator
 });
+var createEmitter = createEventify;
+var decorateWithEvents = enable;
+var setDefaultSchemaValidator = defaultSchemaValidator;
 var src_default = Eventify;
 export {
+  setDefaultSchemaValidator,
   enable,
   defaultSchemaValidator,
   src_default as default,
+  decorateWithEvents,
   createEventify,
+  createEmitter,
   Eventify
 };
 
-//# debugId=D41E8497947BF42964756E2164756E21
+//# debugId=2A7003CC9890AA8964756E2164756E21
 //# sourceMappingURL=index.js.map

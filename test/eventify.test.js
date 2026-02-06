@@ -1,5 +1,5 @@
 import { describe, it, expect } from "bun:test";
-import Eventify, { defaultSchemaValidator } from "../src/index.ts";
+import Eventify, { createEmitter, decorateWithEvents, setDefaultSchemaValidator } from "../src/index.ts";
 
 describe("Eventify", () => {
   const protoMethods = [
@@ -36,17 +36,17 @@ describe("Eventify", () => {
     });
   });
 
-  describe("when enabling events using Eventify.enable, it:", () => {
+  describe("when enabling events using decorateWithEvents, it:", () => {
     it("should add the Events mixin to passed prototype", () => {
       const target = {};
-      Eventify.enable(target);
+      decorateWithEvents(target);
       for (const method of protoMethods) {
         expect(typeof target[method]).toBe("function");
       }
     });
 
     it("should return augmented object", () => {
-      Eventify.enable({})
+      decorateWithEvents({})
         .on("foo", (message) => {
           expect(message).toBe("hello emitter");
         })
@@ -55,7 +55,7 @@ describe("Eventify", () => {
 
     it("should augment an existing prototype", () => {
       function Plop() {}
-      Eventify.enable(Plop.prototype);
+      decorateWithEvents(Plop.prototype);
       new Plop()
         .on("foo", (message) => {
           expect(message).toBe("hello emitter");
@@ -66,16 +66,16 @@ describe("Eventify", () => {
     it("should only augment prototype with expected methods", () => {
       function Plop() {}
       Plop.prototype.foo = function () {};
-      Eventify.enable(Plop.prototype);
+      decorateWithEvents(Plop.prototype);
       const keys = Object.keys(Plop.prototype).sort();
       const expected = ["foo"].concat(protoMethods).sort();
       expect(keys).toEqual(expected);
     });
   });
 
-  describe("Eventify.create", () => {
+  describe("createEmitter", () => {
     it("should return an empty event emitter", () => {
-      const emitter = Eventify.create();
+      const emitter = createEmitter();
       for (const method of protoMethods) {
         expect(typeof emitter[method]).toBe("function");
       }
@@ -89,7 +89,7 @@ describe("Eventify", () => {
 
   describe("emit / produce aliases", () => {
     it("emit is an alias of trigger", () => {
-      const emitter = Eventify.create();
+      const emitter = createEmitter();
       let called = false;
       emitter.on("ping", () => {
         called = true;
@@ -99,7 +99,7 @@ describe("Eventify", () => {
     });
 
     it("produce is an alias of trigger", () => {
-      const emitter = Eventify.create();
+      const emitter = createEmitter();
       let called = false;
       emitter.on("ping", () => {
         called = true;
@@ -111,7 +111,7 @@ describe("Eventify", () => {
 
   describe("On and trigger", () => {
     const obj = { counter: 0 };
-    Eventify.enable(obj);
+    decorateWithEvents(obj);
     it("should increment counter", () => {
       obj.on("event", () => {
         obj.counter += 1;
@@ -130,7 +130,7 @@ describe("Eventify", () => {
 
   describe("Binding and triggering multiple events", () => {
     const obj = { counter: 0 };
-    Eventify.enable(obj);
+    decorateWithEvents(obj);
 
     obj.on("a b c", () => {
       obj.counter += 1;
@@ -155,7 +155,7 @@ describe("Eventify", () => {
       let a;
       let b;
       const local = { counter: 0 };
-      Eventify.enable(local);
+      decorateWithEvents(local);
       local
         .on("all", (event) => {
           local.counter += 1;
@@ -170,7 +170,7 @@ describe("Eventify", () => {
 
     it("binding and triggering with event maps", () => {
       const local = { counter: 0 };
-      Eventify.enable(local);
+      decorateWithEvents(local);
 
       const increment = function () {
         this.counter += 1;
@@ -206,8 +206,8 @@ describe("Eventify", () => {
     });
 
     it("listenTo and stopListening", () => {
-      const a = Eventify.enable({});
-      const b = Eventify.enable({});
+      const a = decorateWithEvents({});
+      const b = decorateWithEvents({});
       let calls = 0;
       a.listenTo(b, "all", () => {
         calls += 1;
@@ -222,8 +222,8 @@ describe("Eventify", () => {
     });
 
     it("listenTo and stopListening with event maps", () => {
-      const a = Eventify.enable({});
-      const b = Eventify.enable({});
+      const a = decorateWithEvents({});
+      const b = decorateWithEvents({});
       let listenCalls = 0;
       let directCalls = 0;
       const listenCb = () => {
@@ -248,8 +248,8 @@ describe("Eventify", () => {
     });
 
     it("stopListening with omitted args", () => {
-      const a = Eventify.enable({});
-      const b = Eventify.enable({});
+      const a = decorateWithEvents({});
+      const b = decorateWithEvents({});
       let calls = 0;
       const cb = () => {
         calls += 1;
@@ -269,8 +269,8 @@ describe("Eventify", () => {
     });
 
     it("listenToOnce and stopListening", () => {
-      const a = Eventify.enable({});
-      const b = Eventify.enable({});
+      const a = decorateWithEvents({});
+      const b = decorateWithEvents({});
       let calls = 0;
       a.listenToOnce(b, "all", () => {
         calls += 1;
@@ -286,8 +286,8 @@ describe("Eventify", () => {
     });
 
     it("listenTo, listenToOnce and stopListening", () => {
-      const a = Eventify.enable({});
-      const b = Eventify.enable({});
+      const a = decorateWithEvents({});
+      const b = decorateWithEvents({});
       let calls = 0;
       a.listenToOnce(b, "all", () => {
         calls += 1;
@@ -303,8 +303,8 @@ describe("Eventify", () => {
     });
 
     it("listenTo and stopListening with event maps", () => {
-      const a = Eventify.enable({});
-      const b = Eventify.enable({});
+      const a = decorateWithEvents({});
+      const b = decorateWithEvents({});
       let calls = 0;
       a.listenTo(b, {
         change: () => {
@@ -323,7 +323,7 @@ describe("Eventify", () => {
     });
 
     it("listenTo yourself", () => {
-      const e = Eventify.enable({});
+      const e = decorateWithEvents({});
       let calls = 0;
       e.listenTo(e, "foo", () => {
         calls += 1;
@@ -333,7 +333,7 @@ describe("Eventify", () => {
     });
 
     it("listenTo yourself cleans yourself up with stopListening", () => {
-      const e = Eventify.enable({});
+      const e = decorateWithEvents({});
       let calls = 0;
       e.listenTo(e, "foo", () => {
         calls += 1;
@@ -345,27 +345,27 @@ describe("Eventify", () => {
     });
 
     it("listenTo with empty callback doesn't throw an error", () => {
-      const e = Eventify.enable({});
+      const e = decorateWithEvents({});
       const result = e.listenTo(e, "foo", null);
       e.trigger("foo");
       expect(result).toBe(e);
     });
 
     it("listenTo with missing target is a noop", () => {
-      const e = Eventify.enable({});
+      const e = decorateWithEvents({});
       const result = e.listenTo(null, "foo", () => {});
       expect(result).toBe(e);
     });
 
     it("listenToOnce with missing target is a noop", () => {
-      const e = Eventify.enable({});
+      const e = decorateWithEvents({});
       const result = e.listenToOnce(null, "foo", () => {});
       expect(result).toBe(e);
     });
 
     it("listenToOnce supports event maps and binds context", () => {
-      const a = Eventify.enable({});
-      const b = Eventify.enable({});
+      const a = decorateWithEvents({});
+      const b = decorateWithEvents({});
       let calls = 0;
       let bound;
       a.listenToOnce(b, {
@@ -383,7 +383,7 @@ describe("Eventify", () => {
 
   describe("Namespaced events + wildcards", () => {
     it("matches hierarchical wildcard listeners", () => {
-      const emitter = Eventify.create();
+      const emitter = createEmitter();
       let calls = 0;
       emitter.on("/product/foo/org/123/user/56/*", () => {
         calls += 1;
@@ -401,7 +401,7 @@ describe("Eventify", () => {
     });
 
     it("supports middle-segment wildcards", () => {
-      const emitter = Eventify.create();
+      const emitter = createEmitter();
       let called = false;
       emitter.on("/product/foo/org/*/tracked-object/*/assesment", () => {
         called = true;
@@ -413,7 +413,7 @@ describe("Eventify", () => {
     });
 
     it("supports custom namespace delimiters", () => {
-      const emitter = Eventify.create({
+      const emitter = createEmitter({
         namespaceDelimiter: ":",
         wildcard: "*",
       });
@@ -426,7 +426,7 @@ describe("Eventify", () => {
     });
 
     it("does not match shorter events for trailing wildcard patterns", () => {
-      const emitter = Eventify.create();
+      const emitter = createEmitter();
       let calls = 0;
       emitter.on("/a/b/*", () => {
         calls += 1;
@@ -436,7 +436,7 @@ describe("Eventify", () => {
     });
 
     it("does not match when segment counts differ without trailing wildcard", () => {
-      const emitter = Eventify.create();
+      const emitter = createEmitter();
       let calls = 0;
       emitter.on("/a/*/c", () => {
         calls += 1;
@@ -446,7 +446,7 @@ describe("Eventify", () => {
     });
 
     it("does not match when static segments differ", () => {
-      const emitter = Eventify.create();
+      const emitter = createEmitter();
       let calls = 0;
       emitter.on("/a/b/*", () => {
         calls += 1;
@@ -456,7 +456,7 @@ describe("Eventify", () => {
     });
 
     it("treats wildcard as a literal when disabled", () => {
-      const emitter = Eventify.create({ wildcard: "" });
+      const emitter = createEmitter({ wildcard: "" });
       let calls = 0;
       emitter.on("a*b", () => {
         calls += 1;
@@ -467,7 +467,7 @@ describe("Eventify", () => {
     });
 
     it("off removes pattern listeners", () => {
-      const emitter = Eventify.create();
+      const emitter = createEmitter();
       let calls = 0;
       const cb = () => {
         calls += 1;
@@ -486,7 +486,7 @@ describe("Eventify", () => {
 
   describe("On, then unbind all functions", () => {
     const obj = { counter: 0 };
-    Eventify.enable(obj);
+    decorateWithEvents(obj);
     const callback = () => {
       obj.counter += 1;
     };
@@ -501,7 +501,7 @@ describe("Eventify", () => {
 
   describe("Bind two callbacks, unbind only one", () => {
     const obj = { counterA: 0, counterB: 0 };
-    Eventify.enable(obj);
+    decorateWithEvents(obj);
     const callback = () => {
       obj.counterA += 1;
     };
@@ -522,7 +522,7 @@ describe("Eventify", () => {
 
   describe("Unbind a callback in the midst of it firing", () => {
     const obj = { counter: 0 };
-    Eventify.enable(obj);
+    decorateWithEvents(obj);
     const callback = () => {
       obj.counter += 1;
       obj.off("event", callback);
@@ -538,7 +538,7 @@ describe("Eventify", () => {
 
   describe("Two binds that unbind themselves", () => {
     const obj = { counterA: 0, counterB: 0 };
-    Eventify.enable(obj);
+    decorateWithEvents(obj);
 
     function incrA() {
       obj.counterA += 1;
@@ -565,7 +565,7 @@ describe("Eventify", () => {
   describe("bind a callback with a supplied context", () => {
     it("should bind `this` to the callback", () => {
       function TestClass() {}
-      const obj = Eventify.enable();
+      const obj = decorateWithEvents();
       const context = new TestClass();
       let bound;
       obj.on("event", function () {
@@ -578,7 +578,7 @@ describe("Eventify", () => {
 
   describe("nested trigger with unbind", () => {
     const obj = { counter: 0 };
-    Eventify.enable(obj);
+    decorateWithEvents(obj);
 
     function incr1() {
       obj.counter += 1;
@@ -599,7 +599,7 @@ describe("Eventify", () => {
 
   describe("callback list is not altered during trigger", () => {
     let counter = 0;
-    const obj = Eventify.enable();
+    const obj = decorateWithEvents();
 
     function incr() {
       counter += 1;
@@ -627,7 +627,7 @@ describe("Eventify", () => {
 
   describe("#1282 - 'all' callback list is retrieved after each event.", () => {
     let counter = 0;
-    const obj = Eventify.enable();
+    const obj = decorateWithEvents();
 
     function incr() {
       counter += 1;
@@ -643,7 +643,7 @@ describe("Eventify", () => {
   });
 
   it("if no callback is provided, `on` is a noop", () => {
-    const emitter = Eventify.enable();
+    const emitter = decorateWithEvents();
     let calls = 0;
     const result = emitter.on("test");
     emitter.on("test", () => {
@@ -656,7 +656,7 @@ describe("Eventify", () => {
 
   it("routes listener errors to onError instead of throwing", () => {
     const errors = [];
-    const view = Eventify.create({
+    const view = createEmitter({
       onError: (error) => {
         errors.push(error);
       },
@@ -671,7 +671,7 @@ describe("Eventify", () => {
   });
 
   it("swallows listener errors when no onError is provided", () => {
-    const emitter = Eventify.create();
+    const emitter = createEmitter();
     emitter.on("boom", () => {
       throw new Error("boom");
     });
@@ -680,7 +680,7 @@ describe("Eventify", () => {
 
   it("routes rejected listener promises to onError", async () => {
     const errors = [];
-    const view = Eventify.create({
+    const view = createEmitter({
       onError: (error) => {
         errors.push(error);
       },
@@ -695,7 +695,7 @@ describe("Eventify", () => {
 
   it("routes invalid callbacks to onError and keeps other listeners running", () => {
     const errors = [];
-    const emitter = Eventify.create({
+    const emitter = createEmitter({
       onError: (error) => {
         errors.push(error);
       },
@@ -713,7 +713,7 @@ describe("Eventify", () => {
   });
 
   it("swallows errors thrown by onError handlers", () => {
-    const emitter = Eventify.create({
+    const emitter = createEmitter({
       onError: () => {
         throw new Error("onError failed");
       },
@@ -726,7 +726,7 @@ describe("Eventify", () => {
 
   describe("remove all events for a specific context", () => {
     it("should remove context", () => {
-      const obj = Eventify.enable();
+      const obj = decorateWithEvents();
       const context = {};
       let keptCalls = 0;
       let removedCalls = 0;
@@ -749,7 +749,7 @@ describe("Eventify", () => {
 
   describe("remove all events for a specific callback", () => {
     it("should remove callback", () => {
-      const obj = Eventify.enable();
+      const obj = decorateWithEvents();
       let successCalls = 0;
       let failCalls = 0;
       function success() {
@@ -769,7 +769,7 @@ describe("Eventify", () => {
 
   describe("off is chainable", () => {
     it("should be chainable", () => {
-      const obj = Eventify.enable();
+      const obj = decorateWithEvents();
       expect(obj.off() === obj).toBe(true);
       obj.on("event", () => {}, obj);
       expect(obj.off() === obj).toBe(true);
@@ -779,14 +779,14 @@ describe("Eventify", () => {
   });
 
   it("off is a noop for unknown events", () => {
-    const obj = Eventify.enable();
+    const obj = decorateWithEvents();
     const result = obj.off("missing");
     expect(result).toBe(obj);
   });
 
   describe("#1310 - off does not skip consecutive events", () => {
     it("should not skip", () => {
-      const obj = Eventify.enable();
+      const obj = decorateWithEvents();
       let calls = 0;
       obj.on(
         "event",
@@ -811,7 +811,7 @@ describe("Eventify", () => {
   describe("When attaching an event listener only once, it:", () => {
     it("once", () => {
       const obj = { counterA: 0, counterB: 0 };
-      Eventify.enable(obj);
+      decorateWithEvents(obj);
       const incrA = () => {
         obj.counterA += 1;
         obj.trigger("event");
@@ -829,10 +829,10 @@ describe("Eventify", () => {
     it("once variant one", () => {
       let onceCalls = 0;
       let onCalls = 0;
-      const a = Eventify.enable({}).once("event", () => {
+      const a = decorateWithEvents({}).once("event", () => {
         onceCalls += 1;
       });
-      const b = Eventify.enable({}).on("event", () => {
+      const b = decorateWithEvents({}).on("event", () => {
         onCalls += 1;
       });
 
@@ -848,7 +848,7 @@ describe("Eventify", () => {
     it("once variant two", () => {
       let onceCalls = 0;
       let onCalls = 0;
-      const obj = Eventify.enable({});
+      const obj = decorateWithEvents({});
       obj
         .once("event", () => {
           onceCalls += 1;
@@ -867,7 +867,7 @@ describe("Eventify", () => {
       const f = () => {
         calls += 1;
       };
-      const obj = Eventify.enable({});
+      const obj = decorateWithEvents({});
 
       obj.once("event", f);
       obj.off("event", f);
@@ -877,7 +877,7 @@ describe("Eventify", () => {
 
     it("once with event maps", () => {
       const obj = { counter: 0 };
-      Eventify.enable(obj);
+      decorateWithEvents(obj);
 
       const increment = function () {
         this.counter += 1;
@@ -907,7 +907,7 @@ describe("Eventify", () => {
 
     it("once with off only by context", () => {
       const context = {};
-      const obj = Eventify.enable({});
+      const obj = decorateWithEvents({});
       let called = false;
       obj.once("event", () => {
         called = true;
@@ -919,7 +919,7 @@ describe("Eventify", () => {
 
     it("once with asynchronous events", async () => {
       let calls = 0;
-      const obj = Eventify.enable({}).once("async", () => {
+      const obj = decorateWithEvents({}).once("async", () => {
         calls += 1;
       });
       obj.trigger("async");
@@ -929,7 +929,7 @@ describe("Eventify", () => {
     });
 
     it("once with multiple events.", () => {
-      const obj = Eventify.enable({});
+      const obj = decorateWithEvents({});
       let calls = 0;
       obj.once("x y", () => {
         calls += 1;
@@ -939,7 +939,7 @@ describe("Eventify", () => {
     });
 
     it("Off during iteration with once.", () => {
-      const obj = Eventify.enable({});
+      const obj = decorateWithEvents({});
       const f = function () {
         this.off("event", f);
       };
@@ -958,7 +958,7 @@ describe("Eventify", () => {
     });
 
     it("once without a callback is a noop", () => {
-      const obj = Eventify.enable({});
+      const obj = decorateWithEvents({});
       let calls = 0;
       obj.once("event");
       obj.on("event", () => {
@@ -971,7 +971,7 @@ describe("Eventify", () => {
 
   describe("Additional parameters", () => {
     it("should include additional parameters", () => {
-      const obj = Eventify.enable();
+      const obj = decorateWithEvents();
       const param1 = "one";
       const param2 = ["two"];
       obj.on("event", (one, two) => {
@@ -982,12 +982,12 @@ describe("Eventify", () => {
     });
   });
 
-  describe("defaultSchemaValidator", () => {
+  describe("setDefaultSchemaValidator", () => {
     it("supports safeParse success", () => {
       const schema = {
         safeParse: (value) => ({ success: true, data: String(value).toUpperCase() }),
       };
-      const result = defaultSchemaValidator(schema, "ok", { event: "test" });
+      const result = setDefaultSchemaValidator(schema, "ok", { event: "test" });
       expect(result).toBe("OK");
     });
 
@@ -996,11 +996,11 @@ describe("Eventify", () => {
       const schema = {
         safeParse: () => ({ success: false, error }),
       };
-      expect(() => defaultSchemaValidator(schema, "ok", { event: "test" })).toThrow(error);
+      expect(() => setDefaultSchemaValidator(schema, "ok", { event: "test" })).toThrow(error);
     });
 
     it("throws when schema has no parser", () => {
-      expect(() => defaultSchemaValidator({}, "ok", { event: "test" })).toThrow(TypeError);
+      expect(() => setDefaultSchemaValidator({}, "ok", { event: "test" })).toThrow(TypeError);
     });
   });
 
@@ -1009,7 +1009,7 @@ describe("Eventify", () => {
       const schema = {
         parse: (value) => String(value).toUpperCase(),
       };
-      const emitter = Eventify.create({
+      const emitter = createEmitter({
         schemas: { shout: schema },
       });
       let seen;
@@ -1031,7 +1031,7 @@ describe("Eventify", () => {
         validateCalls += 1;
         return "ok";
       };
-      const emitter = Eventify.create({
+      const emitter = createEmitter({
         schemas: { known: schema },
         validate,
       });
@@ -1054,9 +1054,9 @@ describe("Eventify", () => {
         },
       };
 
-      const emitter = Eventify.create({
+      const emitter = createEmitter({
         schemas: { shout: schema },
-        validate: defaultSchemaValidator,
+        validate: setDefaultSchemaValidator,
       });
 
       emitter.on("shout", (value) => {
@@ -1074,7 +1074,7 @@ describe("Eventify", () => {
           return "ok";
         },
       };
-      const emitter = Eventify.create({
+      const emitter = createEmitter({
         schemas: { empty: schema },
       });
       let args = null;
@@ -1090,7 +1090,7 @@ describe("Eventify", () => {
       const schema = {
         parse: (value) => [value[0] * 2, value[1] * 3],
       };
-      const emitter = Eventify.create({
+      const emitter = createEmitter({
         schemas: { coords: schema },
       });
       let result = null;
@@ -1111,9 +1111,9 @@ describe("Eventify", () => {
         },
       };
 
-      const emitter = Eventify.create({
+      const emitter = createEmitter({
         schemas: { count: schema },
-        validate: defaultSchemaValidator,
+        validate: setDefaultSchemaValidator,
       });
 
       expect(() => emitter.trigger("count", "nope")).toThrow();
@@ -1125,9 +1125,9 @@ describe("Eventify", () => {
           throw new Error("invalid");
         },
       };
-      const emitter = Eventify.create({
+      const emitter = createEmitter({
         schemas: { "/fail/count": schema },
-        validate: defaultSchemaValidator,
+        validate: setDefaultSchemaValidator,
       });
       let calls = 0;
       emitter.on("/fail/count", () => {
@@ -1148,18 +1148,18 @@ describe("Eventify", () => {
       const schema = {
         parse: () => "nope",
       };
-      const emitter = Eventify.create({
+      const emitter = createEmitter({
         schemas: { multi: schema },
       });
       expect(() => emitter.trigger("multi", 1, 2)).toThrow(TypeError);
     });
 
     it("applies default validator when schemas are added later", () => {
-      const emitter = Eventify.create();
+      const emitter = createEmitter();
       const schema = {
         parse: (value) => String(value).toUpperCase(),
       };
-      Eventify.enable(emitter, { schemas: { shout: schema } });
+      decorateWithEvents(emitter, { schemas: { shout: schema } });
       let seen;
       emitter.on("shout", (value) => {
         seen = value;
@@ -1169,7 +1169,7 @@ describe("Eventify", () => {
     });
 
     it("updates schema and options on existing emitters", () => {
-      const emitter = Eventify.create();
+      const emitter = createEmitter();
       const schema = {
         parse: (value) => value,
       };
@@ -1179,7 +1179,7 @@ describe("Eventify", () => {
         return currentSchema.parse(payload);
       };
       const errors = [];
-      Eventify.enable(emitter, {
+      decorateWithEvents(emitter, {
         validate,
         onError: (error) => {
           errors.push(error);
@@ -1187,7 +1187,7 @@ describe("Eventify", () => {
         namespaceDelimiter: ":",
         wildcard: "~",
       });
-      Eventify.enable(emitter, { schemas: { ping: schema } });
+      decorateWithEvents(emitter, { schemas: { ping: schema } });
 
       let patternCalls = 0;
       emitter.on("ns:foo:~", () => {
@@ -1210,7 +1210,7 @@ describe("Eventify", () => {
 
   describe("Async iterator", () => {
     it("yields events in order", async () => {
-      const emitter = Eventify.create();
+      const emitter = createEmitter();
       const iterator = emitter.iterate("tick");
 
       emitter.trigger("tick", 1);
@@ -1226,7 +1226,7 @@ describe("Eventify", () => {
     });
 
     it("supports abort signals", async () => {
-      const emitter = Eventify.create();
+      const emitter = createEmitter();
       const controller = new AbortController();
       const iterator = emitter.iterate("tick", { signal: controller.signal });
 
@@ -1237,7 +1237,7 @@ describe("Eventify", () => {
     });
 
     it("supports iterating all events", async () => {
-      const emitter = Eventify.create();
+      const emitter = createEmitter();
       const iterator = emitter.iterate("all");
 
       emitter.trigger("ping");
@@ -1249,7 +1249,7 @@ describe("Eventify", () => {
     });
 
     it("resolves pending next when an event arrives", async () => {
-      const emitter = Eventify.create();
+      const emitter = createEmitter();
       const iterator = emitter.iterate("tick");
       const pending = iterator.next();
       emitter.trigger("tick", "now");
@@ -1259,7 +1259,7 @@ describe("Eventify", () => {
     });
 
     it("resolves pending next when iterator closes", async () => {
-      const emitter = Eventify.create();
+      const emitter = createEmitter();
       const iterator = emitter.iterate("tick");
       const pending = iterator.next();
       await iterator.return();
@@ -1270,7 +1270,7 @@ describe("Eventify", () => {
     });
 
     it("returns itself as an async iterator", async () => {
-      const emitter = Eventify.create();
+      const emitter = createEmitter();
       const iterator = emitter.iterate("tick");
       expect(iterator[Symbol.asyncIterator]()).toBe(iterator);
       await iterator.return();
@@ -1278,7 +1278,7 @@ describe("Eventify", () => {
     });
 
     it("stops immediately if the signal is already aborted", async () => {
-      const emitter = Eventify.create();
+      const emitter = createEmitter();
       const controller = new AbortController();
       controller.abort();
       const iterator = emitter.iterate("tick", { signal: controller.signal });
@@ -1287,7 +1287,7 @@ describe("Eventify", () => {
     });
 
     it("throws and closes the iterator", async () => {
-      const emitter = Eventify.create();
+      const emitter = createEmitter();
       const iterator = emitter.iterate("tick");
       await expect(iterator.throw(new Error("stop"))).rejects.toThrow("stop");
       const result = await iterator.next();
@@ -1295,7 +1295,7 @@ describe("Eventify", () => {
     });
 
     it("ignores events after return", async () => {
-      const emitter = Eventify.create();
+      const emitter = createEmitter();
       const originalOn = emitter.on;
       let internalHandler;
       emitter.on = function (name, callback, context) {
@@ -1314,6 +1314,24 @@ describe("Eventify", () => {
       } finally {
         emitter.on = originalOn;
       }
+    });
+
+    it("supports for-await loops with abort", async () => {
+      const emitter = createEmitter();
+      const controller = new AbortController();
+      const seen = [];
+
+      const loop = (async () => {
+        for await (const value of emitter.iterate("tick", { signal: controller.signal })) {
+          seen.push(value);
+          controller.abort();
+        }
+      })();
+
+      emitter.trigger("tick", "first");
+      await loop;
+
+      expect(seen).toEqual(["first"]);
     });
   });
 });

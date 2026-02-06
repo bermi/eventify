@@ -24,7 +24,7 @@ export type SchemaLike<T = unknown> = {
         error: unknown;
     };
 };
-export type SchemaMap = Record<string, SchemaLike<any>>;
+export type SchemaMap = Record<string, SchemaLike>;
 export type InferSchema<S> = S extends {
     parse: (input: unknown) => infer T;
 } ? T : S extends {
@@ -39,11 +39,11 @@ export type EventsFromSchemas<TSchemas> = TSchemas extends SchemaMap ? {
 export type ValidationMeta = {
     event: string;
 };
-export type SchemaValidator<TSchema extends SchemaLike<any> = SchemaLike<any>> = (schema: TSchema, payload: unknown, meta: ValidationMeta) => unknown;
+export type SchemaValidator<TSchema extends SchemaLike = SchemaLike> = (schema: TSchema, payload: unknown, meta: ValidationMeta) => unknown;
 export type ErrorMeta<Events extends EventMap> = {
     event: EventName<Events> | string;
     args: unknown[];
-    listener?: Function;
+    listener?: (...args: unknown[]) => unknown;
     emitter: object;
 };
 export type ErrorHandler<Events extends EventMap> = (error: unknown, meta: ErrorMeta<Events>) => void;
@@ -78,10 +78,10 @@ export interface EventifyEmitter<Events extends EventMap = EventMap> {
     produce(name: string, ...args: unknown[]): this;
     listenTo<OtherEvents extends EventMap, K extends EventName<OtherEvents>>(other: EventifyEmitter<OtherEvents>, name: K, callback: EventHandler<OtherEvents[K]>): this;
     listenTo<OtherEvents extends EventMap>(other: EventifyEmitter<OtherEvents>, name: EventHandlerMap<OtherEvents>): this;
-    listenTo(other: EventifyEmitter<any>, name: string, callback?: (...args: unknown[]) => unknown): this;
+    listenTo(other: EventifyEmitter<EventMap>, name: string, callback?: (...args: unknown[]) => unknown): this;
     listenToOnce<OtherEvents extends EventMap, K extends EventName<OtherEvents>>(other: EventifyEmitter<OtherEvents>, name: K, callback: EventHandler<OtherEvents[K]>): this;
     listenToOnce<OtherEvents extends EventMap>(other: EventifyEmitter<OtherEvents>, name: EventHandlerMap<OtherEvents>): this;
-    listenToOnce(other: EventifyEmitter<any>, name: string, callback?: (...args: unknown[]) => unknown): this;
+    listenToOnce(other: EventifyEmitter<EventMap>, name: string, callback?: (...args: unknown[]) => unknown): this;
     stopListening<OtherEvents extends EventMap>(other?: EventifyEmitter<OtherEvents> | null, name?: EventName<OtherEvents> | EventHandlerMap<OtherEvents> | null, callback?: ((...args: unknown[]) => unknown) | null): this;
     iterate<K extends EventName<Events>>(name: K, options?: IterateOptions): AsyncIterableIterator<PayloadValue<Events[K]>>;
     iterate(name: 'all', options?: IterateOptions): AsyncIterableIterator<[EventName<Events>, ...unknown[]]>;
@@ -98,11 +98,11 @@ export interface EventifyStatic<Events extends EventMap = EventMap> extends Even
     }): EventifyEmitter<EventsFromSchemas<TSchemas>>;
     create<TEvents extends EventMap = EventMap, TSchemas extends SchemaMap | undefined = undefined>(options?: EventifyOptions<TSchemas, TEvents>): EventifyEmitter<TEvents>;
     mixin: EventifyStatic['enable'];
-    proto: EventifyEmitter<any>;
+    proto: EventifyEmitter<EventMap>;
     noConflict: () => EventifyStatic<Events>;
     defaultSchemaValidator: SchemaValidator;
 }
-export declare function defaultSchemaValidator(schema: SchemaLike<any>, payload: unknown, _meta: ValidationMeta): unknown;
+export declare function defaultSchemaValidator(schema: SchemaLike, payload: unknown, _meta: ValidationMeta): unknown;
 export declare function createEventify<TSchemas extends SchemaMap>(options: EventifyOptions<TSchemas, EventsFromSchemas<TSchemas>> & {
     schemas: TSchemas;
 }): EventifyEmitter<EventsFromSchemas<TSchemas>>;
@@ -112,6 +112,9 @@ export declare function enable<TTarget extends object, TSchemas extends SchemaMa
 }): TTarget & EventifyEmitter<EventsFromSchemas<TSchemas>>;
 export declare function enable<TTarget extends object, TEvents extends EventMap = EventMap, TSchemas extends SchemaMap | undefined = undefined>(target?: TTarget, options?: EventifyOptions<TSchemas, TEvents>): TTarget & EventifyEmitter<TEvents>;
 declare const Eventify: EventifyStatic;
-export { Eventify };
+declare const createEmitter: typeof createEventify;
+declare const decorateWithEvents: typeof enable;
+declare const setDefaultSchemaValidator: typeof defaultSchemaValidator;
+export { Eventify, createEmitter, decorateWithEvents, setDefaultSchemaValidator };
 export default Eventify;
 //# sourceMappingURL=index.d.ts.map

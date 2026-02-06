@@ -25,7 +25,7 @@ export type SchemaLike<T = unknown> =
   | { parse: (input: unknown) => T }
   | { safeParse: (input: unknown) => { success: true; data: T } | { success: false; error: unknown } };
 
-export type SchemaMap = Record<string, SchemaLike<any>>;
+export type SchemaMap = Record<string, SchemaLike>;
 
 export type InferSchema<S> =
   S extends { parse: (input: unknown) => infer T } ? T :
@@ -37,13 +37,13 @@ export type EventsFromSchemas<TSchemas> =
 
 export type ValidationMeta = { event: string };
 
-export type SchemaValidator<TSchema extends SchemaLike<any> = SchemaLike<any>> =
+export type SchemaValidator<TSchema extends SchemaLike = SchemaLike> =
   (schema: TSchema, payload: unknown, meta: ValidationMeta) => unknown;
 
 export type ErrorMeta<Events extends EventMap> = {
   event: EventName<Events> | string;
   args: unknown[];
-  listener?: Function;
+  listener?: (...args: unknown[]) => unknown;
   emitter: object;
 };
 
@@ -157,7 +157,7 @@ export interface EventifyEmitter<Events extends EventMap = EventMap> {
     name: EventHandlerMap<OtherEvents>
   ): this;
   listenTo(
-    other: EventifyEmitter<any>,
+    other: EventifyEmitter<EventMap>,
     name: string,
     callback?: (...args: unknown[]) => unknown
   ): this;
@@ -172,7 +172,7 @@ export interface EventifyEmitter<Events extends EventMap = EventMap> {
     name: EventHandlerMap<OtherEvents>
   ): this;
   listenToOnce(
-    other: EventifyEmitter<any>,
+    other: EventifyEmitter<EventMap>,
     name: string,
     callback?: (...args: unknown[]) => unknown
   ): this;
@@ -215,13 +215,16 @@ export interface EventifyStatic<Events extends EventMap = EventMap>
     options?: EventifyOptions<TSchemas, TEvents>
   ): EventifyEmitter<TEvents>;
   mixin: EventifyStatic['enable'];
-  proto: EventifyEmitter<any>;
+  proto: EventifyEmitter<EventMap>;
   noConflict: () => EventifyStatic<Events>;
   defaultSchemaValidator: SchemaValidator;
 }
 
-type CallbackWithOriginal = ((...args: unknown[]) => unknown) & {
-  _callback?: (...args: unknown[]) => unknown;
+type AnyCallback = (...args: any[]) => unknown;
+type AnyEmitter = EventifyEmitter<any>;
+
+type CallbackWithOriginal = AnyCallback & {
+  _callback?: AnyCallback;
 };
 
 type ListenerEntry = {
@@ -240,10 +243,10 @@ type EmitterState = {
   events: Map<string, ListenerEntry[]>;
   patterns: PatternEntry[];
   all: ListenerEntry[];
-  listeningTo: Set<EventifyEmitter<any>>;
+  listeningTo: Set<AnyEmitter>;
   schemas: SchemaMap | undefined;
   validate: SchemaValidator | undefined;
-  onError: ErrorHandler<any>;
+  onError: ErrorHandler<EventMap>;
   namespaceDelimiter: string;
   wildcard: string;
 };
@@ -254,7 +257,7 @@ const stateByEmitter = new WeakMap<object, EmitterState>();
 
 function noop(): void {}
 
-function reportError(state: EmitterState, error: unknown, meta: ErrorMeta<any>): void {
+function reportError(state: EmitterState, error: unknown, meta: ErrorMeta<EventMap>): void {
   try {
     state.onError?.(error, meta);
   } catch {
@@ -271,7 +274,7 @@ function safeCall(
   callback: CallbackWithOriginal,
   ctx: unknown,
   args: unknown[],
-  meta: ErrorMeta<any>
+  meta: ErrorMeta<EventMap>
 ): void {
   try {
     const result = callback.apply(ctx, args);
@@ -283,14 +286,17 @@ function safeCall(
   }
 }
 
-function eventsApi(obj: any, action: string, name: unknown, rest: unknown[]): boolean {
+type EventApiAction = 'on' | 'once' | 'off' | 'trigger';
+type EventApiFn = (name: string, ...args: unknown[]) => unknown;
+
+function eventsApi(obj: AnyEmitter, action: EventApiAction, name: unknown, rest: unknown[]): boolean {
   if (!name) {
     return true;
   }
   if (typeof name === 'object') {
     for (const key in name as Record<string, unknown>) {
       if (Object.prototype.hasOwnProperty.call(name, key)) {
-        obj[action](key, (name as Record<string, unknown>)[key], ...rest);
+        (obj as any)[action](key, (name as Record<string, unknown>)[key], ...rest);
       }
     }
     return false;
@@ -298,7 +304,7 @@ function eventsApi(obj: any, action: string, name: unknown, rest: unknown[]): bo
   if (typeof name === 'string' && eventSplitter.test(name)) {
     const names = name.split(eventSplitter);
     for (const eventName of names) {
-      obj[action](eventName, ...rest);
+      (obj as any)[action](eventName, ...rest);
     }
     return false;
   }
@@ -306,7 +312,7 @@ function eventsApi(obj: any, action: string, name: unknown, rest: unknown[]): bo
 }
 
 export function defaultSchemaValidator(
-  schema: SchemaLike<any>,
+  schema: SchemaLike,
   payload: unknown,
   _meta: ValidationMeta
 ): unknown {
@@ -534,7 +540,7 @@ function removeListener(
 }
 
 const proto: EventifyEmitter<any> = {
-  on(this: EventifyEmitter<any>, name: any, callback?: any, context?: unknown) {
+  on(this: AnyEmitter, name: any, callback?: any, context?: unknown) {
     if (!eventsApi(this, 'on', name, [callback, context]) || !callback) {
       return this;
     }
@@ -542,11 +548,11 @@ const proto: EventifyEmitter<any> = {
     return this;
   },
 
-  once(this: EventifyEmitter<any>, name: any, callback?: any, context?: unknown) {
+  once(this: AnyEmitter, name: any, callback?: any, context?: unknown) {
     if (!eventsApi(this, 'once', name, [callback, context]) || !callback) {
       return this;
     }
-    const self = this as any;
+    const self = this as AnyEmitter;
     let ran = false;
     const onceListener: CallbackWithOriginal = function (this: unknown, ...args: unknown[]) {
       if (ran) {
@@ -557,10 +563,10 @@ const proto: EventifyEmitter<any> = {
       return (callback as CallbackWithOriginal).apply(this, args);
     } as CallbackWithOriginal;
     onceListener._callback = callback as CallbackWithOriginal;
-    return (this as any).on(name, onceListener, context);
+    return (this as AnyEmitter).on(name, onceListener, context);
   },
 
-  off(this: EventifyEmitter<any>, name?: any, callback?: any, context?: unknown) {
+  off(this: AnyEmitter, name?: any, callback?: any, context?: unknown) {
     const state = getExistingState(this);
     if (!state || !eventsApi(this, 'off', name, [callback, context])) {
       return this;
@@ -585,7 +591,7 @@ const proto: EventifyEmitter<any> = {
     return this;
   },
 
-  trigger(this: EventifyEmitter<any>, name: any, ...args: unknown[]) {
+  trigger(this: AnyEmitter, name: any, ...args: unknown[]) {
     const state = getExistingState(this);
     if (!state) {
       return this;
@@ -641,41 +647,41 @@ const proto: EventifyEmitter<any> = {
     return this;
   },
 
-  emit(this: EventifyEmitter<any>, name: any, ...args: unknown[]) {
-    return (this as any).trigger(name, ...args);
+  emit(this: AnyEmitter, name: any, ...args: unknown[]) {
+    return (this as AnyEmitter).trigger(name, ...args);
   },
 
-  produce(this: EventifyEmitter<any>, name: any, ...args: unknown[]) {
-    return (this as any).trigger(name, ...args);
+  produce(this: AnyEmitter, name: any, ...args: unknown[]) {
+    return (this as AnyEmitter).trigger(name, ...args);
   },
 
-  listenTo(this: EventifyEmitter<any>, obj: any, name: any, callback?: any) {
+  listenTo(this: AnyEmitter, obj: any, name: any, callback?: any) {
     if (!obj) {
       return this;
     }
     const state = getState(this);
-    state.listeningTo.add(obj as EventifyEmitter<any>);
+    state.listeningTo.add(obj as AnyEmitter);
     if (typeof name === 'object') {
       callback = this;
     }
-    (obj as any).on(name, callback, this);
+    (obj as AnyEmitter).on(name, callback, this);
     return this;
   },
 
-  listenToOnce(this: EventifyEmitter<any>, obj: any, name: any, callback?: any) {
+  listenToOnce(this: AnyEmitter, obj: any, name: any, callback?: any) {
     if (!obj) {
       return this;
     }
     const state = getState(this);
-    state.listeningTo.add(obj as EventifyEmitter<any>);
+    state.listeningTo.add(obj as AnyEmitter);
     if (typeof name === 'object') {
       callback = this;
     }
-    (obj as any).once(name, callback, this);
+    (obj as AnyEmitter).once(name, callback, this);
     return this;
   },
 
-  stopListening(this: EventifyEmitter<any>, obj?: any, name?: any, callback?: any) {
+  stopListening(this: AnyEmitter, obj?: any, name?: any, callback?: any) {
     const state = getExistingState(this);
     if (!state) {
       return this;
@@ -685,15 +691,15 @@ const proto: EventifyEmitter<any> = {
       callback = this;
     }
 
-    const targets: EventifyEmitter<any>[] = [];
+    const targets: AnyEmitter[] = [];
     if (obj) {
-      targets.push(obj as EventifyEmitter<any>);
+      targets.push(obj as AnyEmitter);
     } else {
       targets.push(...state.listeningTo.values());
     }
 
     for (const target of targets) {
-      (target as any).off(name, callback, this);
+      (target as AnyEmitter).off(name, callback, this);
       if (deleteListener) {
         state.listeningTo.delete(target);
       }
@@ -704,8 +710,8 @@ const proto: EventifyEmitter<any> = {
     return this;
   },
 
-  iterate(this: EventifyEmitter<any>, name: any, options?: IterateOptions): AsyncIterableIterator<any> {
-    const emitter = this as any;
+  iterate(this: AnyEmitter, name: any, options?: IterateOptions): AsyncIterableIterator<any> {
+    const emitter = this as AnyEmitter;
     const queue: unknown[] = [];
     let pending: ((value: IteratorResult<unknown>) => void) | null = null;
     let done = false;
@@ -786,8 +792,8 @@ export function createEventify<TEvents extends EventMap = EventMap, TSchemas ext
 ): EventifyEmitter<TEvents>;
 export function createEventify(
   options?: EventifyOptions
-): EventifyEmitter<any> {
-  const emitter = Object.create(proto) as EventifyEmitter<any>;
+): EventifyEmitter<EventMap> {
+  const emitter = Object.create(proto) as EventifyEmitter<EventMap>;
   getState(emitter, options as EventifyOptions);
   return emitter;
 }
@@ -803,13 +809,13 @@ export function enable<TTarget extends object, TEvents extends EventMap = EventM
 export function enable(
   target?: object,
   options?: EventifyOptions
-): object & EventifyEmitter<any> {
-  const destination = (target ?? {}) as object & EventifyEmitter<any>;
-  for (const method of Object.keys(proto) as Array<keyof EventifyEmitter<any>>) {
+): object & EventifyEmitter<EventMap> {
+  const destination = (target ?? {}) as Record<string, unknown>;
+  for (const method of Object.keys(proto)) {
     (destination as any)[method] = (proto as any)[method];
   }
   getState(destination, options as EventifyOptions);
-  return destination;
+  return destination as unknown as object & EventifyEmitter<EventMap>;
 }
 
 const EventifyInstance = createEventify();
@@ -824,5 +830,9 @@ const Eventify = Object.assign(EventifyInstance, {
   defaultSchemaValidator,
 }) as EventifyStatic;
 
-export { Eventify };
+const createEmitter = createEventify;
+const decorateWithEvents = enable;
+const setDefaultSchemaValidator = defaultSchemaValidator;
+
+export { Eventify, createEmitter, decorateWithEvents, setDefaultSchemaValidator };
 export default Eventify;

@@ -16,13 +16,10 @@ All notable changes to this project will be documented in this file.
 - Namespaced event wildcards with configurable `namespaceDelimiter` and `wildcard`.
 - `emit` and `produce` aliases for `trigger`.
 - Async iterator API via `iterate()`.
-
-### Changed
-- Build + test workflow now uses Bun (e.g. `bun test`, `bun run build:all`).
+- Named exports: `createEmitter`, `decorateWithEvents`, `setDefaultSchemaValidator`.
 
 ### Migration Notes (2.x -> 3.x)
 - Replace script-tag usage with ESM imports, or bundle `dist/index.js` into your app.
 - If you previously relied on thrown listener errors, provide `onError` and re-throw in your handler if desired.
 - Update your tooling to Node 20+.
 - If you want schema validation, pass `schemas` and either use `defaultSchemaValidator` or your own validator.
-
