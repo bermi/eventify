@@ -1,80 +1,46 @@
 {
   "name": "eventify",
-  "version": "2.0.1",
-  "description": "Lightweight module that can be mixed in to any object in order to provide it with custom events. For node.js and the browser. Based on Backbone.Events",
+  "version": "3.0.0",
+  "description": "EventTarget-first event emitter with strict TypeScript typings and optional schema validation.",
   "author": "Bermi Ferrer <bermi@bermilabs.com>",
-  "url": "https://github.com/bermi/eventify",
+  "license": "MIT",
+  "type": "module",
   "keywords": [
     "event",
     "eventify",
     "events",
-    "browser",
-    "trigger",
+    "EventTarget",
+    "CustomEvent",
     "observer",
-    "bind",
-    "backbone",
-    "standalone",
-    "backbone-events",
-    "EventEmitter",
-    "ender"
+    "emit",
+    "trigger"
   ],
-  "bugs": {
-    "url": "https://github.com/bermi/eventify/issues"
-  },
-  "licenses": [
-    {
-      "type": "MIT",
-      "url": "http://opensource.org/licenses/mit-license.php"
-    }
-  ],
-  "repository": {
-    "type": "git",
-    "url": "git://github.com/bermi/eventify.git"
-  },
   "engines": {
-    "node": ">= 0.6.x"
+    "node": ">=20"
   },
-  "dependencies": {},
-  "devDependencies": {
-    "blanket": "1.1.6",
-    "expect.js": "0.3.1",
-    "grunt": "0.4.5",
-    "grunt-cli": "0.1.13",
-    "grunt-contrib-concat": "0.5.0",
-    "grunt-contrib-jshint": "0.10.0",
-    "grunt-contrib-uglify": "0.6.0",
-    "grunt-contrib-watch": "0.6.1",
-    "grunt-release": "~0.11.0",
-    "load-grunt-tasks": "~3.1.0",
-    "mocha": "2.0.1",
-    "mocha-spec-cov": "0.0.3"
-  },
-  "scripts": {
-    "test": "make test"
-  },
-  "testling": {
-    "browsers": [
-      "iexplore/8..latest",
-      "firefox/17..latest",
-      "chrome/30..latest",
-      "opera/12..latest",
-      "safari/5..latest",
-      "iphone/6..latest",
-      "ipad/6..latest",
-      "android-browser/4.2..latest"
-    ],
-    "harness": "mocha",
-    "files": "test/*.js"
-  },
-  "config": {
-    "blanket": {
-      "data-cover-only": "[./,./lib]",
-      "data-cover-never": "[./node_modules]"
+  "sideEffects": false,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "browser": "./dist/index.js",
+      "bun": "./dist/index.js",
+      "node": "./dist/index.js",
+      "default": "./dist/index.js"
     }
   },
-  "ender": "./lib/ender.js",
-  "main": "./lib/eventify.js",
-  "directories": {
-    "lib": "./lib"
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "bun test",
+    "test:watch": "bun test --watch"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0"
   }
 }

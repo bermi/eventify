@@ -1,1 +1,2 @@
-module.exports = require('./lib/eventify.js');
+export { default } from './dist/index.js';
+export * from './dist/index.js';

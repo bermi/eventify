@@ -1,226 +1,326 @@
 # Eventify
 
-Eventify is a lightweight module that can be mixed in to any object in order to provide it with custom events. It has no external dependencies. Based on Backbone.Events
+Eventify is a tiny, EventTarget-first event emitter with strict TypeScript types and optional runtime validation.
 
-[![Build Status](https://secure.travis-ci.org/bermi/eventify.png?branch=master)](http://travis-ci.org/bermi/eventify)
+The goal is a modern, minimal DX that keeps the original Eventify ergonomics while leaning on standard platform APIs.
 
-[![browser support](http://ci.testling.com/bermi/eventify.png)](http://ci.testling.com/bermi/eventify)
+## Design Goals
 
-*(non-ES5 environments require an ES5 shim)*
+- Keep the original Eventify surface (`on`, `once`, `off`, `trigger`, `listenTo`, `listenToOnce`, `stopListening`).
+- Be EventTarget-first internally for consistent behavior across browsers, Node, and Bun.
+- Ship zero runtime dependencies and optional schema validation via DI.
+- Stay small and tree-shakeable (ESM only).
+- Support namespaced events with wildcards (e.g. `namespace:foo:*` or `/product/foo/*`).
+- Allow configurable namespace delimiter (default `/`).
 
-## Installing
+## Install
 
-### On the browser
+```bash
+npm install eventify
+```
 
-A 3.19 kB (1.4K gzipped) browser ready version is available on the dist/ folder.
+## Quickstart
 
-    <script src="dist/eventify.min.js" type="text/javascript"></script>
+```ts
+import Eventify from "eventify";
 
+const emitter = Eventify.create();
 
-### Node.js
+emitter.on("alert", (message) => {
+  console.log(message);
+});
 
-    $ npm install eventify
+emitter.trigger("alert", "hello");
+// aliases:
+emitter.emit("alert", "hello");
+emitter.produce("alert", "hello");
+```
 
+## Typed Events
 
-### Ender support
+```ts
+type Events = {
+  ready: void;
+  "change:title": string;
+  data: [string, number];
+};
 
-    ender add eventify
+const emitter = Eventify.create<Events>();
 
-Will provide access to the $.eventify function
+emitter.on("data", (name, count) => {
+  console.log(name, count);
+});
 
+emitter.trigger("data", "hello", 42);
+```
 
-## Documentation
+## Event Maps + Space-Delimited Names
 
-Eventify is a module that can be mixed in to any object, giving the object the ability to bind and trigger custom named events. Events do not have to be declared before they are bound, and may take passed arguments. For example:
+```ts
+const emitter = Eventify.create();
 
-    var object = {};
+emitter.on({
+  "change:title": () => console.log("title"),
+  "change:author": () => console.log("author"),
+});
 
-    Eventify.enable(object);
+emitter.on("open close", () => console.log("toggled"));
+```
 
-    object.on("alert", function(msg) {
-      alert("Triggered " + msg);
-    });
+## Namespaced Events + Wildcards
 
-    object.trigger("alert", "an event");
+Event names can be hierarchical. Listeners may subscribe to exact names or wildcard patterns.
 
-The prototype is also exposed so you can extend it:
+By default the namespace delimiter is `/` and the wildcard is `*`.
 
-    function MyEmitter() {
-      // ...
-    }
+- A trailing `*` matches any remaining suffix segments.
+- A `*` in the middle matches exactly one segment.
 
-    MyEmitter.prototype = Object.create(Eventify.proto);
+```ts
+const emitter = Eventify.create({
+  namespaceDelimiter: "/",
+  wildcard: "*",
+});
 
-    MyEmitter.prototype.foo = function () {
-      //...
-    };
+emitter.on("/product/foo/org/123/user/56/*", () => {
+  console.log("any account for that user");
+});
 
-If you want to create a plain emitter in a lightweight manner, use `Eventify.create()`:
+emitter.on("/product/foo/org/123/*", () => {
+  console.log("any user in org 123");
+});
 
-    var emitter = Eventify.create();
+emitter.on("/product/foo/*", () => {
+  console.log("any org in product foo");
+});
 
-    emitter.on("foo", function (message) {
-      //...
-    })
+emitter.trigger("/product/foo/org/123/user/56/account/abcd");
+```
 
+Middle-segment wildcards:
 
-### *enable* Eventify.enable(destination)
+```ts
+emitter.on("/product/foo/org/*/tracked-object/*/assesment", () => {
+  console.log("any tracked-object assesment within an org");
+});
+```
 
-Copies the methods on, off and trigger to the destination object, and returns the destination object.
+Colon namespaces are supported by changing the delimiter:
 
-For example, to make a handy event dispatcher that can coordinate events among different areas of your application:
+```ts
+const emitter = Eventify.create({
+  namespaceDelimiter: ":",
+  wildcard: "*",
+});
 
-    var dispatcher = Eventify.enable()
+emitter.on("namespace:foo:*", () => {
+  console.log("any sub-event in namespace:foo");
+});
+```
 
+Wildcard patterns are accepted anywhere an event name is accepted (`on`, `once`, `off`, `listenTo`, `listenToOnce`, `stopListening`, `iterate`).
 
-### *on* object.on(event, callback, [context])
+## Options
 
-Bind a callback function to an object. The callback will be invoked whenever the event is fired. If you have a large number of different events, the convention is to use colons to namespace them: "poll:start", or "change:selection". The event string may also be a space-delimited list of several events...
+```ts
+type EventifyOptions = {
+  schemas?: Record<string, { parse?: Function; safeParse?: Function }>;
+  validate?: (schema: unknown, payload: unknown, meta: { event: string }) => unknown;
+  onError?: (error: unknown, meta: { event: string; args: unknown[]; listener?: Function; emitter: object }) => void;
+  namespaceDelimiter?: string; // default "/"
+  wildcard?: string; // default "*"
+};
 
-    book.on("change:title change:author", ...);
+const emitter = Eventify.create(options);
+```
 
-To supply a context value for this when the callback is invoked, pass the optional third argument: model.on('change', this.render, this)
+## "all" Event
 
-Callbacks bound to the special "all" event will be triggered when any event occurs, and are passed the name of the event as the first argument. For example, to proxy all events from one object to another:
+Listeners bound to `"all"` are called for every event and receive the event name as the first argument.
 
-    proxy.on("all", function(eventName) {
-      object.trigger(eventName);
-    });
+```ts
+emitter.on("all", (eventName, ...args) => {
+  console.log(eventName, args);
+});
+```
 
+## listenTo / stopListening
 
-All event methods also support an event map syntax, as an alternative to positional arguments:
+```ts
+const a = Eventify.create();
+const b = Eventify.create();
 
-    book.on({
-      "change:title": titleView.update,
-      "change:author": authorPane.update,
-      "destroy": bookView.remove
-    });
+a.listenTo(b, "ready", () => console.log("ready"));
 
+b.trigger("ready");
 
-### *off* object.off([event], [callback], [context])
+a.stopListening();
+```
 
-Remove a previously-bound callback function from an object. If no context is specified, all of the versions of the callback with different contexts will be removed. If no callback is specified, all callbacks for the event will be removed. If no event is specified, all event callbacks on the object will be removed.
+## Async Iteration
 
-    // Removes just the `onChange` callback.
-    object.off("change", onChange);
+```ts
+const emitter = Eventify.create();
+const iterator = emitter.iterate("data");
 
-    // Removes all "change" callbacks.
-    object.off("change");
+emitter.trigger("data", "a", 1);
 
-    // Removes the `onChange` callback for all events.
-    object.off(null, onChange);
+const { value } = await iterator.next();
+// value -> ["a", 1]
+```
 
-    // Removes all callbacks for `context` for all events.
-    object.off(null, null, context);
+To iterate all events:
 
-    // Removes all callbacks on `object`.
-    object.off();
+```ts
+const all = emitter.iterate("all");
 
+emitter.trigger("ready");
 
-### *trigger* object.trigger(event, [*args])
+const { value } = await all.next();
+// value -> ["ready"]
+```
 
-Trigger callbacks for the given event, or space-delimited list of events. Subsequent arguments to trigger will be passed along to the event callbacks.
+## Error Handling
 
-### **once** object.once(event, callback, [context])
+Listener failures never crash by default. Errors are routed to `onError`.
 
-Just like on, but causes the bound callback to only fire once before being removed. Handy for saying "the next time that X happens, do this".
+```ts
+const emitter = Eventify.create({
+  onError: (error, meta) => {
+    console.error(meta.event, error);
+  },
+});
 
+emitter.on("boom", () => {
+  throw new Error("nope");
+});
 
-### **listenTo** object.listenTo(other, event, callback)
+emitter.trigger("boom");
+```
 
-Tell an object to listen to a particular event on an other object. The advantage of using this form, instead of other.on(event, callback, object), is that listenTo allows the object to keep track of the events, and they can be removed all at once later on. The callback will always be called with object as context.
+## Schema Validation (Zod v4 Compatible)
 
-    view.listenTo(model, 'change', view.render);
+Eventify accepts any schema object with `parse` or `safeParse`. This works with Zod without a hard dependency.
 
-### **stopListening** object.stopListening([other], [event], [callback])
+```ts
+import { z } from "zod";
+import Eventify from "eventify";
 
-Tell an object to stop listening to events. Either call stopListening with no arguments to have the object remove all of its registered callbacks ... or be more precise by telling it to remove just the events it's listening to on a specific object, or a specific event, or just a specific callback.
+const schemas = {
+  data: z.tuple([z.string(), z.number()]),
+  ready: z.undefined(),
+};
 
-    view.stopListening();
+const emitter = Eventify.create({
+  schemas,
+  validate: Eventify.defaultSchemaValidator,
+});
 
-    view.stopListening(model);
+emitter.on("data", (name, count) => {
+  console.log(name, count);
+});
 
-### **listenToOnce** object.listenToOnce(other, event, callback)
+emitter.trigger("data", "hello", 1);
+```
 
-Just like listenTo, but causes the bound callback to only fire once before being removed.
+Validation runs on `trigger`. If validation fails, `trigger` throws and listeners are not called.
 
+## Failure Modes and Behavior
 
-### *noConflict* var LocalEventify = Eventify.noConflict();
+- Validation failure: `trigger`/`emit`/`produce` throws and no listeners run (including wildcard and `all`).
+- Listener errors: thrown errors or rejected promises are routed to `onError` and do not stop other listeners.
+- Invalid callbacks: if a non-function is registered, invoking it triggers a runtime `TypeError` which is routed to `onError`.
+- `iterate` backpressure: if producers emit faster than you consume, the iterator queue grows. Use `AbortSignal`, `return()`, or stop iteration to release listeners.
+- `listenTo`/`listenToOnce`: the target must be an Eventify emitter (or another object with compatible `on`/`once`/`off`). Otherwise behavior is undefined.
 
-Returns the Eventify object back to its original value. You can use the return value of Eventify.noConflict() to keep a local reference to Eventify. Useful for embedding Eventify on third-party websites, where you don't want to clobber the existing Eventify object.
+## Defining Constraints
 
-    var localEventify = Eventify.noConflict();
-    var model = localEventify.enable();
+Use these methods/options to enforce constraints:
 
+- Payload constraints: `schemas` + `validate` run on `trigger`/`emit`/`produce`. Throwing blocks delivery.
+- Cardinality constraints: `once` / `listenToOnce` enforce single-fire listeners.
+- Lifetime constraints: `off` / `stopListening` remove listeners; `iterate` supports `AbortSignal`.
+- Namespace constraints: `namespaceDelimiter` and `wildcard` define matching rules for hierarchical event names.
+- Error constraints: `onError` centralizes listener errors without crashing.
 
-Another option is to bind the Eventify library to the window object using a different name. You can do so by declaring the localEventifyLibraryName before loading the Eventify library code. For example:
+## Constraints and Guarantees
 
-    <script>var localEventifyLibraryName = 'EventManager';</script>
-    <script src="/dist/eventify.min.js" type="text/javascript"></script>
-    <script>
-        var dispatcher = EventManager.enable();
-    </script>
+- Event names are split by `namespaceDelimiter`. Leading or trailing delimiters create empty segments that must match exactly.
+- `wildcard` should be a non-empty token that does not equal the delimiter.
+- A `*` in the middle matches exactly one segment; a trailing `*` matches any remaining suffix segments.
+- `*` alone matches any event but does not include the event name in callback args; use `"all"` if you need it.
+- Schema validation runs on emit. For multi-arg events, schemas must return an array/tuple or `trigger` throws.
+- `onError` is best-effort; if it throws, the error is swallowed to avoid crashing.
 
+## Wildcard Rules
 
-## Testing
+Event names are split by the configured `namespaceDelimiter`. The wildcard token matches segments.
 
-In order to run the tests you will need to have nodejs installed.
+- A `*` in the middle matches exactly one segment.
+- A trailing `*` matches any remaining suffix segments.
+- `*` alone matches any event (but does not include the event name in the callback).
 
-Install dev dependencies with:
+If you need the event name, use `"all"` instead of `*`.
 
-    $ npm install
+## API Reference
 
-And then run the tests with:
+```ts
+on(event, callback, [context])
+on({ event: callback, ... }, [context])
+on("a b c", callback, [context])
+```
+`on` binds a listener. The optional `context` becomes `this` inside the callback. The default context is the emitter.
 
-    $ make test
+```ts
+once(event, callback, [context])
+once({ event: callback, ... }, [context])
+once("a b c", callback, [context])
+```
+`once` is like `on` but auto-removes the listener after it fires the first time.
 
-### On the browser
+```ts
+off()
+off(event, [callback], [context])
+off({ event: callback, ... }, [context])
+```
+`off` removes listeners. Omitting all args removes everything.
 
-    $ make test-browser
+```ts
+trigger(event, ...args)
+emit(event, ...args)
+produce(event, ...args)
+```
+`emit` and `produce` are aliases of `trigger`.
 
-### Code coverage
+```ts
+listenTo(other, event, callback)
+listenTo(other, { event: callback, ... })
+```
+`listenTo` registers listeners on another emitter and tracks them for bulk removal. The listener `context` is always the calling object.
 
-You will need to install https://github.com/visionmedia/node-jscoverage
-and then run
+```ts
+listenToOnce(other, event, callback)
+listenToOnce(other, { event: callback, ... })
+```
+`listenToOnce` is the `once` variant of `listenTo`.
 
-    $ make test-coverage
+```ts
+stopListening([other], [event], [callback])
+```
+`stopListening` removes tracked listeners. Omitting all args removes everything.
 
-## Development watcher and test runner
+```ts
+iterate(event, [options])
+```
+`iterate` returns an `AsyncIterableIterator`. For `"all"`, each value is `[eventName, ...args]`. For other events, a single argument is yielded as a value; multiple arguments are yielded as an array.
 
-### Continuous linting
+## Notes
 
-    $ make dev
-
-### Continuous testing
-
-    $ make test-watch
-
-### Continuous linting + testing
-
-    $ make dev-test
-
+- `CustomEvent.detail` always stores event args as an array to preserve `trigger("event", ...args)` semantics.
+- `"all"` is a compatibility feature (Backbone/Eventify style); it is not a standard EventTarget concept.
+- Duplicate registrations are allowed; the same callback can be invoked multiple times if registered multiple times.
+- This is ESM-only. Builds are tree-shakeable.
 
 ## License
 
-(The MIT License)
-
-Copyright (c) 2012 Bermi Ferrer &lt;bermi@bermilabs.com&gt;
-
-Permission is hereby granted, free of charge, to any person obtaining
-a copy of this software and associated documentation files (the
-'Software'), to deal in the Software without restriction, including
-without limitation the rights to use, copy, modify, merge, publish,
-distribute, sublicense, and/or sell copies of the Software, and to
-permit persons to whom the Software is furnished to do so, subject to
-the following conditions:
-
-The above copyright notice and this permission notice shall be
-included in all copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED 'AS IS', WITHOUT WARRANTY OF ANY KIND,
-EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
-IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
-CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
-TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
-SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+MIT
