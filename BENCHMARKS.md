@@ -178,3 +178,16 @@ Keep the hybrid path to preserve EventTarget interop without regressing baseline
 ## Summary
 
 Kept precomputed pattern segments and the `listeningTo` Set. The `isPatternName` fast path keeps wildcard-free paths cheap. Map remains the best fit for event storage based on the structure microbench, and the runtime now uses a hybrid pattern matcher: prefix checks for trailing-only wildcards and segment matching for mixed wildcards. EventTarget dispatch is skipped unless native listeners exist to avoid overhead on the hot path.
+
+## Strategy Summary (Quick Matrix)
+
+| Area | Strategy | Most Efficient | Implemented |
+| --- | --- | --- | --- |
+| Event storage | `Map` vs object | `Map` | `Map` |
+| Pattern matching (mixed wildcards) | precomputed segments vs split-per-match vs regex | precomputed segments | precomputed segments |
+| Pattern matching (trailing `*` only) | prefix vs segments vs regex | prefix | prefix (only for trailing-only) |
+| Dispatch path | always `EventTarget` vs hybrid direct call | hybrid direct call when no native listeners | hybrid direct call |
+
+Notes
+- Mixed-wildcard patterns fall back to segment matching for correctness across arbitrary wildcard positions.
+- Prefix-only matching is used only when the pattern ends with a trailing wildcard and has no internal wildcards.
