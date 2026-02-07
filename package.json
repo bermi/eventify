@@ -34,7 +34,8 @@
 	},
 	"files": [
 		"dist",
-		"docs",
+		"BENCHMARKS.md",
+		"CHANGELOG.md",
 		"README.md",
 		"LICENSE"
 	],
