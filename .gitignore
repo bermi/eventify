@@ -2,6 +2,9 @@
 node_modules
 npm-debug.log
 bun.lockb
+*.tgz
+.env
+.env.*
 coverage/
 *.lcov
 playwright-report/

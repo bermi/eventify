@@ -26,6 +26,19 @@ emitter.on("alert", (message) => {
 emitter.trigger("alert", "hello");
 ```
 
+## Async Iteration (for-await)
+
+```ts
+const controller = new AbortController();
+
+(async () => {
+  for await (const value of emitter.iterate("data", { signal: controller.signal })) {
+    console.log(value);
+    controller.abort();
+  }
+})();
+```
+
 ## Docs
 
 - Guide: `docs/guide.md`
