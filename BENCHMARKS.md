@@ -15,6 +15,8 @@ Commands
 Environment
 - Date: 2026-02-06
 - Bun: 1.3.1
+- Node: 20.10.0
+- Browser: Playwright Chromium (Chrome for Testing 145.0.7632.6)
 - samples=5 warmup=2 iters=50,000
 
 ## Iteration 1 - Baseline
