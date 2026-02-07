@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+mapfile -t files < <(git diff --cached --name-only --diff-filter=ACM)
+
+if [ ${#files[@]} -eq 0 ]; then
+  exit 0
+fi
+
+bunx @biomejs/biome format --write -- "${files[@]}"
+
+git add -- "${files[@]}"

@@ -1,11 +1,5 @@
 export type EventMap = Record<string, unknown>;
-export type PayloadArgs<T> = [
-    T
-] extends [void] ? [] : [
-    T
-] extends [undefined] ? [] : T extends readonly unknown[] ? T : [
-    T
-];
+export type PayloadArgs<T> = [T] extends [void] ? [] : [T] extends [undefined] ? [] : T extends readonly unknown[] ? T : [T];
 export type PayloadValue<T> = T extends readonly unknown[] ? T : T;
 export type EventName<Events extends EventMap> = Extract<keyof Events, string>;
 export type EventHandler<T> = (...args: PayloadArgs<T>) => unknown;
@@ -62,11 +56,11 @@ export interface EventifyEmitter<Events extends EventMap = EventMap> {
     removeEventListener(type: string, listener: EventListenerOrEventListenerObject | null, options?: boolean | EventListenerOptions): void;
     dispatchEvent(event: Event): boolean;
     on<K extends EventName<Events>>(name: K, callback: EventHandler<Events[K]>, context?: unknown): this;
-    on(name: 'all', callback: AllHandler<Events>, context?: unknown): this;
+    on(name: "all", callback: AllHandler<Events>, context?: unknown): this;
     on(name: EventHandlerMap<Events>, context?: unknown): this;
     on(name: string, callback?: (...args: unknown[]) => unknown, context?: unknown): this;
     once<K extends EventName<Events>>(name: K, callback: EventHandler<Events[K]>, context?: unknown): this;
-    once(name: 'all', callback: AllHandler<Events>, context?: unknown): this;
+    once(name: "all", callback: AllHandler<Events>, context?: unknown): this;
     once(name: EventHandlerMap<Events>, context?: unknown): this;
     once(name: string, callback?: (...args: unknown[]) => unknown, context?: unknown): this;
     off(): this;
@@ -87,7 +81,7 @@ export interface EventifyEmitter<Events extends EventMap = EventMap> {
     listenToOnce(other: EventifyEmitter<EventMap>, name: string, callback?: (...args: unknown[]) => unknown): this;
     stopListening<OtherEvents extends EventMap>(other?: EventifyEmitter<OtherEvents> | null, name?: EventName<OtherEvents> | EventHandlerMap<OtherEvents> | null, callback?: ((...args: unknown[]) => unknown) | null): this;
     iterate<K extends EventName<Events>>(name: K, options?: IterateOptions): AsyncIterableIterator<PayloadValue<Events[K]>>;
-    iterate(name: 'all', options?: IterateOptions): AsyncIterableIterator<[EventName<Events>, ...unknown[]]>;
+    iterate(name: "all", options?: IterateOptions): AsyncIterableIterator<[EventName<Events>, ...unknown[]]>;
     iterate(name: string, options?: IterateOptions): AsyncIterableIterator<unknown>;
 }
 export interface EventifyStatic<Events extends EventMap = EventMap> extends EventifyEmitter<Events> {
@@ -100,7 +94,7 @@ export interface EventifyStatic<Events extends EventMap = EventMap> extends Even
         schemas: TSchemas;
     }): EventifyEmitter<EventsFromSchemas<TSchemas>>;
     create<TEvents extends EventMap = EventMap, TSchemas extends SchemaMap | undefined = undefined>(options?: EventifyOptions<TSchemas, TEvents>): EventifyEmitter<TEvents>;
-    mixin: EventifyStatic['enable'];
+    mixin: EventifyStatic["enable"];
     proto: EventifyEmitter<EventMap>;
     noConflict: () => EventifyStatic<Events>;
     defaultSchemaValidator: SchemaValidator;
@@ -118,6 +112,6 @@ declare const Eventify: EventifyStatic;
 declare const createEmitter: typeof createEventify;
 declare const decorateWithEvents: typeof enable;
 declare const setDefaultSchemaValidator: typeof defaultSchemaValidator;
-export { Eventify, createEmitter, decorateWithEvents, setDefaultSchemaValidator };
+export { Eventify, createEmitter, decorateWithEvents, setDefaultSchemaValidator, };
 export default Eventify;
 //# sourceMappingURL=index.d.ts.map
