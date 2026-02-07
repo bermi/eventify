@@ -7,6 +7,19 @@ if [ ${#files[@]} -eq 0 ]; then
   exit 0
 fi
 
-bunx @biomejs/biome format --write -- "${files[@]}"
+format_files=()
+for file in "${files[@]}"; do
+  case "$file" in
+    *.js|*.jsx|*.ts|*.tsx|*.mjs|*.cjs|*.json|*.jsonc|*.css|*.html|*.graphql|*.gql|*.yml|*.yaml)
+      format_files+=("$file")
+      ;;
+  esac
+done
 
-git add -- "${files[@]}"
+if [ ${#format_files[@]} -eq 0 ]; then
+  exit 0
+fi
+
+bunx @biomejs/biome format --write -- "${format_files[@]}"
+
+git add -- "${format_files[@]}"

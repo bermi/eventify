@@ -1,6 +1,6 @@
 # Eventify
 
-Tiny, zero-dependency event emitter with strict TypeScript types, wildcard namespaces, and optional schema validation.
+Tiny event emitter with strict TypeScript types, wildcard namespaces, and optional schema validation.
 
 - ESM only, tree-shakeable
 - Node 20+, Bun, modern browsers
@@ -26,17 +26,9 @@ emitter.on("alert", (message) => {
 emitter.trigger("alert", "hello");
 ```
 
-## Guide
+## Usage
 
-### Create an Emitter
-
-```ts
-import { createEmitter } from "eventify";
-
-const emitter = createEmitter();
-```
-
-You can also mix Eventify into an existing object:
+### Mixins
 
 ```ts
 import { decorateWithEvents } from "eventify";
@@ -64,8 +56,6 @@ emitter.trigger("data", "hello", 42);
 
 ### Event Maps + Space-Delimited Names
 
-Event maps and space-delimited names follow Backbone-style conventions.
-
 ```ts
 emitter.on({
   "change:title": () => console.log("title"),
@@ -79,10 +69,10 @@ emitter.on("open close", () => console.log("toggled"));
 
 Event names are split by `namespaceDelimiter` (default `/`). The `wildcard` token (default `*`) matches segments.
 
-- `*` in the middle matches exactly one segment.
-- Trailing `*` matches any remaining suffix segments.
-- `*` alone matches any event, but does not include the event name in args; use `"all"` if you need it.
-- Leading/trailing delimiters create empty segments that must match exactly.
+- `*` in the middle matches one segment
+- trailing `*` matches remaining segments
+- `*` alone matches any event (use `"all"` if you need the event name)
+- leading/trailing delimiters create empty segments that must match exactly
 
 ```ts
 const emitter = createEmitter({
@@ -113,7 +103,7 @@ emitter.on("/product/foo/org/*/tracked-object/*/assesment", () => {
 });
 ```
 
-Colon namespaces are supported by changing the delimiter:
+Colon namespaces:
 
 ```ts
 const emitter = createEmitter({
@@ -126,11 +116,9 @@ emitter.on("namespace:foo:*", () => {
 });
 ```
 
-Wildcard patterns work anywhere an event name is accepted.
-
 ### Schemas (Zod v4 Compatible)
 
-Eventify accepts any schema with `parse` or `safeParse`. Zod works without a hard dependency.
+Any schema with `parse` or `safeParse` works. Zod is supported via DI.
 
 ```ts
 import { z } from "zod";
@@ -177,9 +165,9 @@ emitter.trigger("boom");
 
 `createEmitter` and `decorateWithEvents` expose `addEventListener`, `removeEventListener`, and `dispatchEvent`.
 
-`trigger`/`emit`/`produce` dispatch a `CustomEvent` with the payload stored in `event.detail`.
-If you call `dispatchEvent` yourself, only EventTarget listeners (and matching `on` listeners) run — schemas, patterns, and `"all"` do not.
-`detail` is the single payload value for 1-arg events, an array for multi-arg events, and `undefined` for no-arg events.
+`trigger`/`emit`/`produce` dispatch a `CustomEvent` with the payload in `event.detail`.
+`dispatchEvent` only uses the EventTarget path (and matching `on` listeners). It does not run schemas, patterns, or `"all"`.
+`detail` is the single payload for 1-arg events, an array for multi-arg events, and `undefined` for no-arg events.
 
 ### Async Iteration
 
@@ -193,7 +181,7 @@ const { value } = await iterator.next();
 // value -> ["a", 1]
 ```
 
-To iterate all events:
+Iterate all events:
 
 ```ts
 const all = emitter.iterate("all");
@@ -202,7 +190,7 @@ const { value } = await all.next();
 // value -> ["ready"]
 ```
 
-Abort iteration with an `AbortSignal`:
+Abort with an `AbortSignal`:
 
 ```ts
 const controller = new AbortController();
@@ -229,7 +217,7 @@ const controller = new AbortController();
 - Listener errors: thrown errors or rejected promises are routed to `onError` and do not stop other listeners.
 - Invalid callbacks: invoking a non-function throws a `TypeError` that is routed to `onError`.
 - `onError` failures: errors thrown by the handler are swallowed to avoid crashing producers.
-- `iterate` backpressure: if producers emit faster than you consume, the iterator queue grows. Use `AbortSignal`, `return()`, or stop iteration to release listeners.
+- `iterate` backpressure: if producers emit faster than you consume, the iterator queue grows. Use `AbortSignal`, `return()`, or stop iteration.
 - `listenTo`/`listenToOnce`: the target must be an Eventify emitter (or another object with compatible `on`/`once`/`off`).
 
 Constraint tools:
@@ -321,9 +309,6 @@ removeEventListener(type, listener, [options])
 dispatchEvent(event)
 ```
 
-`trigger`/`emit`/`produce` dispatch a `CustomEvent` with the payload stored in `event.detail`.
-`dispatchEvent` only uses the EventTarget path (and any `on` listeners for that event type); it does not run schema validation, wildcard patterns, or `"all"` listeners.
-
 ### Cross-Emitter Listening
 
 ```ts
@@ -361,12 +346,10 @@ SchemaValidator
 EventsFromSchemas
 ```
 
-These types are designed for strict inference and optional schema validation.
-
 ## Benchmarks + Changelog
 
-- Benchmarks: `BENCHMARKS.md`
-- Changelog: `CHANGELOG.md`
+- `BENCHMARKS.md`
+- `CHANGELOG.md`
 
 ## Development + Release
 
