@@ -1,8 +1,12 @@
 import { describe, it, expect } from "bun:test";
+import { z } from "zod";
 import Eventify, { createEmitter, decorateWithEvents, setDefaultSchemaValidator } from "../src/index.ts";
 
 describe("Eventify", () => {
   const protoMethods = [
+    "addEventListener",
+    "removeEventListener",
+    "dispatchEvent",
     "on",
     "once",
     "off",
@@ -33,6 +37,12 @@ describe("Eventify", () => {
       const target = {};
       const result = Eventify.proto.stopListening.call(target);
       expect(result).toBe(target);
+    });
+
+    it("removeEventListener is a noop on plain objects", () => {
+      const target = {};
+      const result = Eventify.proto.removeEventListener.call(target, "event", () => {});
+      expect(result).toBeUndefined();
     });
   });
 
@@ -742,6 +752,62 @@ describe("Eventify", () => {
     expect(errors[0]).toBeInstanceOf(TypeError);
   });
 
+  it("supports dispatchEvent with CustomEvent.detail", () => {
+    const emitter = createEmitter();
+    let received;
+    emitter.on("native", (value) => {
+      received = value;
+    });
+    emitter.dispatchEvent(new CustomEvent("native", { detail: "ok" }));
+    expect(received).toBe("ok");
+  });
+
+  it("supports dispatchEvent without detail payloads", () => {
+    const emitter = createEmitter();
+    let calls = 0;
+    let lastCount = -1;
+    emitter.on("native", (...args) => {
+      calls += 1;
+      lastCount = args.length;
+    });
+    const eventWithUndefinedDetail = new Event("native");
+    Object.defineProperty(eventWithUndefinedDetail, "detail", { value: undefined });
+    emitter.dispatchEvent(eventWithUndefinedDetail);
+    emitter.dispatchEvent(new Event("native"));
+    expect(calls).toBe(2);
+    expect(lastCount).toBe(0);
+  });
+
+  it("exposes addEventListener/removeEventListener for native listeners", () => {
+    const emitter = createEmitter();
+    let calls = 0;
+    const listener = () => {
+      calls += 1;
+    };
+    emitter.addEventListener("native", listener);
+    emitter.trigger("native");
+    emitter.removeEventListener("native", listener);
+    emitter.trigger("native");
+    expect(calls).toBe(1);
+  });
+
+  it("uses CustomEvent.detail for on listeners when native listeners are present", () => {
+    const emitter = createEmitter();
+    let received = null;
+    let nativeCalls = 0;
+    emitter.on("native", (value) => {
+      received = value;
+    });
+    emitter.addEventListener("native", () => {
+      nativeCalls += 1;
+    });
+
+    emitter.trigger("native", "ok");
+
+    expect(received).toBe("ok");
+    expect(nativeCalls).toBe(1);
+  });
+
   it("swallows errors thrown by onError handlers", () => {
     const emitter = createEmitter({
       onError: () => {
@@ -1296,6 +1362,41 @@ describe("Eventify", () => {
       };
       const emitter = createEmitter({
         schemas,
+        validate: setDefaultSchemaValidator,
+      });
+
+      expect(() => emitter.trigger("user", { id: 123 })).toThrow();
+    });
+
+    it("validates with Zod schemas", () => {
+      const emitter = createEmitter({
+        schemas: {
+          user: z.object({ id: z.string() }),
+          coords: z.tuple([z.number(), z.number()]),
+        },
+        validate: setDefaultSchemaValidator,
+      });
+      let seen = null;
+      let coords = null;
+      emitter.on("user", (value) => {
+        seen = value;
+      });
+      emitter.on("coords", (x, y) => {
+        coords = [x, y];
+      });
+
+      emitter.trigger("user", { id: "ok" });
+      emitter.trigger("coords", 1, 2);
+
+      expect(seen).toEqual({ id: "ok" });
+      expect(coords).toEqual([1, 2]);
+    });
+
+    it("throws for invalid Zod payloads", () => {
+      const emitter = createEmitter({
+        schemas: {
+          user: z.object({ id: z.string() }),
+        },
         validate: setDefaultSchemaValidator,
       });
 

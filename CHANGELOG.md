@@ -12,10 +12,11 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 - Strict TypeScript typings for all APIs.
-- Optional schema validation via DI (`schemas` + `validate`) with `defaultSchemaValidator` for Zod-compatible `parse`/`safeParse`.
+- Optional schema validation via DI (`schemas` + `validate`) with `defaultSchemaValidator` / `setDefaultSchemaValidator` for Zod-compatible `parse`/`safeParse`.
 - Namespaced event wildcards with configurable `namespaceDelimiter` and `wildcard`.
 - `emit` and `produce` aliases for `trigger`.
 - Async iterator API via `iterate()`.
+- EventTarget interop (`addEventListener`, `removeEventListener`, `dispatchEvent`) with payloads in `CustomEvent.detail`.
 - Named exports: `createEmitter`, `decorateWithEvents`, `setDefaultSchemaValidator`.
 
 ### Migration Notes (2.x -> 3.x)

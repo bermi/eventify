@@ -66,6 +66,18 @@ export type IterateOptions = {
 };
 
 export interface EventifyEmitter<Events extends EventMap = EventMap> {
+  addEventListener(
+    type: string,
+    listener: EventListenerOrEventListenerObject | null,
+    options?: boolean | AddEventListenerOptions
+  ): void;
+  removeEventListener(
+    type: string,
+    listener: EventListenerOrEventListenerObject | null,
+    options?: boolean | EventListenerOptions
+  ): void;
+  dispatchEvent(event: Event): boolean;
+
   on<K extends EventName<Events>>(
     name: K,
     callback: EventHandler<Events[K]>,
@@ -253,6 +265,9 @@ type EmitterState = {
   patterns: PatternEntry[];
   all: ListenerEntry[];
   listeningTo: Set<AnyEmitter>;
+  target: EventTarget;
+  dispatchers: Map<string, EventListener>;
+  nativeListeners: Map<string, Set<EventListenerOrEventListenerObject>>;
   schemas: SchemaMap | undefined;
   validate: SchemaValidator | undefined;
   onError: ErrorHandler<EventMap>;
@@ -261,6 +276,13 @@ type EmitterState = {
 };
 
 const eventSplitter = /\s+/;
+const eventifyArgsKey: unique symbol = Symbol('eventifyArgs');
+const eventifyListenersKey: unique symbol = Symbol('eventifyListeners');
+
+type EventifyCustomEvent = CustomEvent<unknown> & {
+  [eventifyArgsKey]?: unknown[];
+  [eventifyListenersKey]?: ListenerEntry[];
+};
 
 const stateByEmitter = new WeakMap<object, EmitterState>();
 
@@ -293,6 +315,32 @@ function safeCall(
   } catch (error) {
     reportError(state, error, meta);
   }
+}
+
+function getEventArgs(event: Event): unknown[] {
+  const customEvent = event as EventifyCustomEvent;
+  const stored = customEvent[eventifyArgsKey];
+  if (stored) {
+    return stored;
+  }
+  if ('detail' in customEvent) {
+    const detail = (customEvent as CustomEvent<unknown>).detail;
+    if (detail === undefined) {
+      return [];
+    }
+    return Array.isArray(detail) ? detail : [detail];
+  }
+  return [];
+}
+
+function createEvent(name: string, args: unknown[]): CustomEvent<unknown> {
+  const detail = args.length <= 1 ? args[0] : args;
+  const event = new CustomEvent(name, { detail }) as EventifyCustomEvent;
+  Object.defineProperty(event, eventifyArgsKey, {
+    value: args,
+    enumerable: false,
+  });
+  return event;
 }
 
 type EventApiAction = 'on' | 'once' | 'off' | 'trigger';
@@ -347,6 +395,9 @@ function getState(target: object, options?: EventifyOptions): EmitterState {
       patterns: [],
       all: [],
       listeningTo: new Set(),
+      target: new EventTarget(),
+      dispatchers: new Map(),
+      nativeListeners: new Map(),
       schemas: options?.schemas,
       validate: options?.validate,
       onError: options?.onError ?? noop,
@@ -500,12 +551,28 @@ function addListener(
     return;
   }
 
-  const list = state.events.get(name);
-  if (list) {
-    list.push(entry);
-  } else {
-    state.events.set(name, [entry]);
+  let list = state.events.get(name);
+  if (!list) {
+    list = [];
+    state.events.set(name, list);
   }
+  if (!state.dispatchers.has(name)) {
+    const dispatcher: EventListener = (event) => {
+      const args = getEventArgs(event);
+      const snapshot = (event as EventifyCustomEvent)[eventifyListenersKey] ?? state.events.get(name) ?? [];
+      for (const listenerEntry of snapshot) {
+        safeCall(state, listenerEntry.callback, listenerEntry.ctx, args, {
+          event: name,
+          args,
+          listener: listenerEntry.callback,
+          emitter,
+        });
+      }
+    };
+    state.dispatchers.set(name, dispatcher);
+    state.target.addEventListener(name, dispatcher);
+  }
+  list.push(entry);
 }
 
 function removeListener(
@@ -556,6 +623,11 @@ function removeListener(
     state.events.set(name, retained);
   } else {
     state.events.delete(name);
+    const dispatcher = state.dispatchers.get(name);
+    if (dispatcher) {
+      state.target.removeEventListener(name, dispatcher);
+      state.dispatchers.delete(name);
+    }
   }
 }
 
@@ -635,6 +707,38 @@ function iterate(this: AnyEmitter, name: string, options?: IterateOptions): Asyn
 }
 
 const proto: EventifyEmitter<EventMap> = {
+  addEventListener(this: AnyEmitter, type: string, listener: EventListenerOrEventListenerObject | null, options?: boolean | AddEventListenerOptions) {
+    const state = getState(this);
+    state.target.addEventListener(type, listener, options);
+    if (listener) {
+      const listeners = state.nativeListeners.get(type) ?? new Set();
+      listeners.add(listener);
+      state.nativeListeners.set(type, listeners);
+    }
+  },
+
+  removeEventListener(this: AnyEmitter, type: string, listener: EventListenerOrEventListenerObject | null, options?: boolean | EventListenerOptions) {
+    const state = getExistingState(this);
+    if (!state) {
+      return;
+    }
+    state.target.removeEventListener(type, listener, options);
+    if (listener) {
+      const listeners = state.nativeListeners.get(type);
+      if (listeners) {
+        listeners.delete(listener);
+        if (!listeners.size) {
+          state.nativeListeners.delete(type);
+        }
+      }
+    }
+  },
+
+  dispatchEvent(this: AnyEmitter, event: Event) {
+    const state = getState(this);
+    return state.target.dispatchEvent(event);
+  },
+
   on(this: AnyEmitter, name: unknown, callback?: unknown, context?: unknown) {
     if (!eventsApi(this, 'on', name, [callback, context]) || !callback) {
       return this;
@@ -667,7 +771,11 @@ const proto: EventifyEmitter<EventMap> = {
       return this;
     }
     if (!name && !callback && !context) {
+      for (const [eventName, dispatcher] of state.dispatchers) {
+        state.target.removeEventListener(eventName, dispatcher);
+      }
       state.events.clear();
+      state.dispatchers.clear();
       state.patterns = [];
       state.all = [];
       return this;
@@ -703,7 +811,17 @@ const proto: EventifyEmitter<EventMap> = {
     const allSnapshot = state.all.length ? state.all.slice() : null;
     let eventSegments: string[] | null = null;
 
-    if (eventSnapshot) {
+    const hasNativeListeners = state.nativeListeners.get(eventName)?.size;
+    if (hasNativeListeners) {
+      const event = createEvent(eventName, validatedArgs);
+      if (eventSnapshot?.length) {
+        Object.defineProperty(event, eventifyListenersKey, {
+          value: eventSnapshot,
+          enumerable: false,
+        });
+      }
+      state.target.dispatchEvent(event);
+    } else if (eventSnapshot?.length) {
       for (const entry of eventSnapshot) {
         safeCall(state, entry.callback, entry.ctx, validatedArgs, {
           event: eventName,

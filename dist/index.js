@@ -1,5 +1,7 @@
 // src/index.ts
 var eventSplitter = /\s+/;
+var eventifyArgsKey = Symbol("eventifyArgs");
+var eventifyListenersKey = Symbol("eventifyListeners");
 var stateByEmitter = new WeakMap;
 function noop() {}
 function reportError(state, error, meta) {
@@ -19,6 +21,30 @@ function safeCall(state, callback, ctx, args, meta) {
   } catch (error) {
     reportError(state, error, meta);
   }
+}
+function getEventArgs(event) {
+  const customEvent = event;
+  const stored = customEvent[eventifyArgsKey];
+  if (stored) {
+    return stored;
+  }
+  if ("detail" in customEvent) {
+    const detail = customEvent.detail;
+    if (detail === undefined) {
+      return [];
+    }
+    return Array.isArray(detail) ? detail : [detail];
+  }
+  return [];
+}
+function createEvent(name, args) {
+  const detail = args.length <= 1 ? args[0] : args;
+  const event = new CustomEvent(name, { detail });
+  Object.defineProperty(event, eventifyArgsKey, {
+    value: args,
+    enumerable: false
+  });
+  return event;
 }
 function eventsApi(obj, action, name, rest) {
   if (!name) {
@@ -64,6 +90,9 @@ function getState(target, options) {
       patterns: [],
       all: [],
       listeningTo: new Set,
+      target: new EventTarget,
+      dispatchers: new Map,
+      nativeListeners: new Map,
       schemas: options?.schemas,
       validate: options?.validate,
       onError: options?.onError ?? noop,
@@ -197,12 +226,28 @@ function addListener(emitter, name, callback, context) {
     }
     return;
   }
-  const list = state.events.get(name);
-  if (list) {
-    list.push(entry);
-  } else {
-    state.events.set(name, [entry]);
+  let list = state.events.get(name);
+  if (!list) {
+    list = [];
+    state.events.set(name, list);
   }
+  if (!state.dispatchers.has(name)) {
+    const dispatcher = (event) => {
+      const args = getEventArgs(event);
+      const snapshot = event[eventifyListenersKey] ?? state.events.get(name) ?? [];
+      for (const listenerEntry of snapshot) {
+        safeCall(state, listenerEntry.callback, listenerEntry.ctx, args, {
+          event: name,
+          args,
+          listener: listenerEntry.callback,
+          emitter
+        });
+      }
+    };
+    state.dispatchers.set(name, dispatcher);
+    state.target.addEventListener(name, dispatcher);
+  }
+  list.push(entry);
 }
 function removeListener(state, name, callback, context) {
   const matches = (entry) => {
@@ -243,6 +288,11 @@ function removeListener(state, name, callback, context) {
     state.events.set(name, retained);
   } else {
     state.events.delete(name);
+    const dispatcher = state.dispatchers.get(name);
+    if (dispatcher) {
+      state.target.removeEventListener(name, dispatcher);
+      state.dispatchers.delete(name);
+    }
   }
 }
 function iterate(name, options) {
@@ -312,6 +362,35 @@ function iterate(name, options) {
   return iterator;
 }
 var proto = {
+  addEventListener(type, listener, options) {
+    const state = getState(this);
+    state.target.addEventListener(type, listener, options);
+    if (listener) {
+      const listeners = state.nativeListeners.get(type) ?? new Set;
+      listeners.add(listener);
+      state.nativeListeners.set(type, listeners);
+    }
+  },
+  removeEventListener(type, listener, options) {
+    const state = getExistingState(this);
+    if (!state) {
+      return;
+    }
+    state.target.removeEventListener(type, listener, options);
+    if (listener) {
+      const listeners = state.nativeListeners.get(type);
+      if (listeners) {
+        listeners.delete(listener);
+        if (!listeners.size) {
+          state.nativeListeners.delete(type);
+        }
+      }
+    }
+  },
+  dispatchEvent(event) {
+    const state = getState(this);
+    return state.target.dispatchEvent(event);
+  },
   on(name, callback, context) {
     if (!eventsApi(this, "on", name, [callback, context]) || !callback) {
       return this;
@@ -342,7 +421,11 @@ var proto = {
       return this;
     }
     if (!name && !callback && !context) {
+      for (const [eventName, dispatcher] of state.dispatchers) {
+        state.target.removeEventListener(eventName, dispatcher);
+      }
       state.events.clear();
+      state.dispatchers.clear();
       state.patterns = [];
       state.all = [];
       return this;
@@ -372,7 +455,17 @@ var proto = {
     const patternSnapshot = state.patterns.length ? state.patterns.slice() : null;
     const allSnapshot = state.all.length ? state.all.slice() : null;
     let eventSegments = null;
-    if (eventSnapshot) {
+    const hasNativeListeners = state.nativeListeners.get(eventName)?.size;
+    if (hasNativeListeners) {
+      const event = createEvent(eventName, validatedArgs);
+      if (eventSnapshot?.length) {
+        Object.defineProperty(event, eventifyListenersKey, {
+          value: eventSnapshot,
+          enumerable: false
+        });
+      }
+      state.target.dispatchEvent(event);
+    } else if (eventSnapshot?.length) {
       for (const entry of eventSnapshot) {
         safeCall(state, entry.callback, entry.ctx, validatedArgs, {
           event: eventName,
@@ -527,5 +620,5 @@ export {
   Eventify
 };
 
-//# debugId=FA096C47A6FA6CC764756E2164756E21
+//# debugId=CC1457DA4423BE7364756E2164756E21
 //# sourceMappingURL=index.js.map

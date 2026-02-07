@@ -1,5 +1,6 @@
 import { createEmitter } from "../src/index";
 import type { EventHandler, EventsFromSchemas, PayloadArgs } from "../src/index";
+import { z } from "zod";
 
 type Events = {
   ready: void;
@@ -76,3 +77,25 @@ const okUserHandler: EventHandler<SchemaEvents["user"]> = (value) => value.id;
 const badUserHandler: EventHandler<SchemaEvents["user"]> = (value: number) => value;
 
 schemaEmitter.on("user", okUserHandler);
+
+const zodSchemas = {
+  user: z.object({ id: z.string() }),
+  coords: z.tuple([z.number(), z.number()]),
+  ready: z.undefined(),
+};
+
+type ZodEvents = EventsFromSchemas<typeof zodSchemas>;
+type _assertZodUser = Expect<Equal<ZodEvents["user"], { id: string }>>;
+type _assertZodCoords = Expect<Equal<ZodEvents["coords"], [number, number]>>;
+type _assertZodReady = Expect<Equal<ZodEvents["ready"], undefined>>;
+
+const zodEmitter = createEmitter({ schemas: zodSchemas });
+
+zodEmitter.on("user", (value) => {
+  value.id.toUpperCase();
+});
+zodEmitter.on("coords", (x, y) => {
+  x.toFixed(1);
+  y.toFixed(1);
+});
+zodEmitter.on("ready", () => {});

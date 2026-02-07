@@ -43,9 +43,13 @@
     "build": "bun build src/index.ts --outdir dist --entry-naming \"[name].js\" --format esm --target=browser --sourcemap=linked",
     "build:types": "bun x tsc -p tsconfig.types.json",
     "build:all": "bun run build && bun run build:types",
-    "bench": "bun run bench/bench.ts",
-    "bench:structures": "bun run bench/structures.ts",
-    "bench:patterns": "bun run bench/patterns.ts",
+    "bench": "bun run build && bun run bench/bench.mjs",
+    "bench:structures": "bun run bench/structures.mjs",
+    "bench:patterns": "bun run bench/patterns.mjs",
+    "bench:node": "bun run build && node bench/bench.mjs",
+    "bench:node:structures": "node bench/structures.mjs",
+    "bench:node:patterns": "node bench/patterns.mjs",
+    "bench:browser": "bun run build && bunx playwright test -c bench/playwright.config.mjs",
     "typecheck:tests": "bun x tsc -p test/tsconfig.types.json",
     "test": "bun test",
     "test:browser": "bun run build && bunx playwright test",
@@ -56,6 +60,7 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.42.0",
-    "typescript": "^5.0.0"
+    "typescript": "^5.0.0",
+    "zod": "^4.3.6"
   }
 }

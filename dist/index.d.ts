@@ -58,6 +58,9 @@ export type IterateOptions = {
     signal?: AbortSignal;
 };
 export interface EventifyEmitter<Events extends EventMap = EventMap> {
+    addEventListener(type: string, listener: EventListenerOrEventListenerObject | null, options?: boolean | AddEventListenerOptions): void;
+    removeEventListener(type: string, listener: EventListenerOrEventListenerObject | null, options?: boolean | EventListenerOptions): void;
+    dispatchEvent(event: Event): boolean;
     on<K extends EventName<Events>>(name: K, callback: EventHandler<Events[K]>, context?: unknown): this;
     on(name: 'all', callback: AllHandler<Events>, context?: unknown): this;
     on(name: EventHandlerMap<Events>, context?: unknown): this;

@@ -26,8 +26,8 @@ test.beforeAll(async () => {
   </head>
   <body>
     <script type="module">
-      import Eventify from "/dist/index.js";
-      window.__eventify = Eventify;
+      import { createEmitter } from "/dist/index.js";
+      window.__createEmitter = createEmitter;
     </script>
   </body>
 </html>`);
@@ -77,10 +77,9 @@ test.afterAll(async () => {
 
 test("basic on/trigger", async ({ page }) => {
   await page.goto(baseURL);
-  await page.waitForFunction(() => window.__eventify);
+  await page.waitForFunction(() => window.__createEmitter);
   const calls = await page.evaluate(() => {
-    const Eventify = window.__eventify;
-    const emitter = Eventify.create();
+    const emitter = window.__createEmitter();
     let count = 0;
     emitter.on("ping", (value) => {
       if (value === 42) count += 1;
@@ -93,9 +92,9 @@ test("basic on/trigger", async ({ page }) => {
 
 test("all listener sees event name", async ({ page }) => {
   await page.goto(baseURL);
-  await page.waitForFunction(() => window.__eventify);
+  await page.waitForFunction(() => window.__createEmitter);
   const result = await page.evaluate(() => {
-    const emitter = window.__eventify.create();
+    const emitter = window.__createEmitter();
     let name;
     emitter.on("all", (eventName) => {
       name = eventName;
@@ -108,9 +107,9 @@ test("all listener sees event name", async ({ page }) => {
 
 test("wildcard namespaces match", async ({ page }) => {
   await page.goto(baseURL);
-  await page.waitForFunction(() => window.__eventify);
+  await page.waitForFunction(() => window.__createEmitter);
   const calls = await page.evaluate(() => {
-    const emitter = window.__eventify.create();
+    const emitter = window.__createEmitter();
     let count = 0;
     emitter.on("/product/foo/*", () => {
       count += 1;
@@ -123,12 +122,12 @@ test("wildcard namespaces match", async ({ page }) => {
 
 test("schemas validate in browser", async ({ page }) => {
   await page.goto(baseURL);
-  await page.waitForFunction(() => window.__eventify);
+  await page.waitForFunction(() => window.__createEmitter);
   const result = await page.evaluate(() => {
     const schema = {
       parse: (value) => String(value).toUpperCase(),
     };
-    const emitter = window.__eventify.create({
+    const emitter = window.__createEmitter({
       schemas: { shout: schema },
     });
     let seen;
@@ -143,9 +142,9 @@ test("schemas validate in browser", async ({ page }) => {
 
 test("iterate yields values", async ({ page }) => {
   await page.goto(baseURL);
-  await page.waitForFunction(() => window.__eventify);
+  await page.waitForFunction(() => window.__createEmitter);
   const value = await page.evaluate(async () => {
-    const emitter = window.__eventify.create();
+    const emitter = window.__createEmitter();
     const iterator = emitter.iterate("tick");
     emitter.trigger("tick", 1, 2);
     const result = await iterator.next();

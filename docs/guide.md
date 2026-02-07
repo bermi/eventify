@@ -149,6 +149,14 @@ emitter.on("boom", () => {
 emitter.trigger("boom");
 ```
 
+## EventTarget Interop
+
+`createEmitter` and `decorateWithEvents` expose `addEventListener`, `removeEventListener`, and `dispatchEvent`.
+
+`trigger`/`emit`/`produce` dispatch a `CustomEvent` with the payload stored in `event.detail`.
+If you call `dispatchEvent` yourself, only EventTarget listeners (and matching `on` listeners) run — schemas, patterns, and `"all"` do not.
+`detail` is the single payload value for 1-arg events, an array for multi-arg events, and `undefined` for no-arg events.
+
 ## Async Iteration
 
 ```ts

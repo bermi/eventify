@@ -65,6 +65,17 @@ produce(event, ...args)
 
 `emit` and `produce` are aliases of `trigger`.
 
+## EventTarget Interop
+
+```ts
+addEventListener(type, listener, [options])
+removeEventListener(type, listener, [options])
+dispatchEvent(event)
+```
+
+`trigger`/`emit`/`produce` dispatch a `CustomEvent` with the payload stored in `event.detail`.
+`dispatchEvent` only uses the EventTarget path (and any `on` listeners for that event type); it does not run schema validation, wildcard patterns, or `"all"` listeners.
+
 ## Cross-Emitter Listening
 
 ```ts

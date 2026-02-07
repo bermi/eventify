@@ -2,10 +2,14 @@
 
 These are microbenchmarks to compare internal data-structure and hot-path changes. They are not a promise of real-world throughput.
 
-Command
+Commands
 `bun run bench`
 `bun run bench:structures`
 `bun run bench:patterns`
+`bun run bench:node`
+`bun run bench:node:structures`
+`bun run bench:node:patterns`
+`bun run bench:browser` (Playwright)
 
 Environment
 - Date: 2026-02-06
@@ -149,6 +153,25 @@ Suite: trailing wildcard only
 Decision
 Use prefix matching for trailing-only wildcard patterns and keep segment matching for mixed wildcards.
 
+## Iteration 8 - Skip EventTarget dispatch without native listeners
+
+Change
+Call Eventify listeners directly when there are no native `addEventListener` listeners, and dispatch `CustomEvent`s only when native listeners exist.
+
+Results (eventify microbench)
+| Case | Median (ms) | Ops/s |
+| --- | --- | --- |
+| trigger (no listeners) | 1.517 | 32,960,702 |
+| trigger (1 listener) | 5.710 | 8,756,247 |
+| trigger (10 listeners) | 20.007 | 2,499,131 |
+| trigger (all listener) | 6.570 | 7,610,833 |
+| trigger (pattern match) | 21.654 | 2,309,033 |
+| on/off (100 listeners) | 0.102 | 1,955,187 |
+| listenTo/stopListening | 0.266 | 376,176 |
+
+Decision
+Keep the hybrid path to preserve EventTarget interop without regressing baseline emit throughput.
+
 ## Summary
 
-Kept precomputed pattern segments and the `listeningTo` Set. The `isPatternName` fast path keeps wildcard-free paths cheap. Map remains the best fit for event storage based on the structure microbench, and the runtime now uses a hybrid pattern matcher: prefix checks for trailing-only wildcards and segment matching for mixed wildcards.
+Kept precomputed pattern segments and the `listeningTo` Set. The `isPatternName` fast path keeps wildcard-free paths cheap. Map remains the best fit for event storage based on the structure microbench, and the runtime now uses a hybrid pattern matcher: prefix checks for trailing-only wildcards and segment matching for mixed wildcards. EventTarget dispatch is skipped unless native listeners exist to avoid overhead on the hot path.
