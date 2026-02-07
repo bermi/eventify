@@ -1,18 +1,20 @@
 # Benchmarks
 
-These are microbenchmarks to compare internal data-structure and hot-path changes. They are not a promise of real-world throughput.
+Microbenchmarks for internal data-structure and hot-path changes. Not a promise of real-world throughput.
 
-Commands
-`bun run bench`
-`bun run bench:structures`
-`bun run bench:patterns`
-`bun run bench:node`
-`bun run bench:node:structures`
-`bun run bench:node:patterns`
-`bun run bench:browser` (Playwright)
-`bun run bench:all`
+## Commands
 
-Environment
+- `bun run bench`
+- `bun run bench:structures`
+- `bun run bench:patterns`
+- `bun run bench:node`
+- `bun run bench:node:structures`
+- `bun run bench:node:patterns`
+- `bun run bench:browser` (Playwright)
+- `bun run bench:all`
+
+## Environment
+
 - Date: 2026-02-06
 - Bun: 1.3.1
 - Node: 20.10.0
@@ -181,13 +183,14 @@ Kept precomputed pattern segments and the `listeningTo` Set. The `isPatternName`
 
 ## Strategy Summary (Quick Matrix)
 
-| Area | Strategy | Most Efficient | Implemented |
-| --- | --- | --- | --- |
-| Event storage | `Map` vs object | `Map` | `Map` |
-| Pattern matching (mixed wildcards) | precomputed segments vs split-per-match vs regex | precomputed segments | precomputed segments |
-| Pattern matching (trailing `*` only) | prefix vs segments vs regex | prefix | prefix (only for trailing-only) |
-| Dispatch path | always `EventTarget` vs hybrid direct call | hybrid direct call when no native listeners | hybrid direct call |
+| Area                                 | Strategy                                         | Most Efficient                              | Implemented                     |
+| ------------------------------------ | ------------------------------------------------ | ------------------------------------------- | ------------------------------- |
+| Event storage                        | `Map` vs object                                  | `Map`                                       | `Map`                           |
+| Pattern matching (mixed wildcards)   | precomputed segments vs split-per-match vs regex | precomputed segments                        | precomputed segments            |
+| Pattern matching (trailing `*` only) | prefix vs segments vs regex                      | prefix                                      | prefix (only for trailing-only) |
+| Dispatch path                        | always `EventTarget` vs hybrid direct call       | hybrid direct call when no native listeners | hybrid direct call              |
 
 Notes
+
 - Mixed-wildcard patterns fall back to segment matching for correctness across arbitrary wildcard positions.
 - Prefix-only matching is used only when the pattern ends with a trailing wildcard and has no internal wildcards.

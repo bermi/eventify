@@ -1,70 +1,70 @@
 {
-	"name": "eventify",
-	"version": "3.0.0",
-	"description": "Tiny event emitter with strict TypeScript typings and optional schema validation.",
-	"author": "Bermi Ferrer <bermi@bermilabs.com>",
-	"license": "MIT",
-	"type": "module",
-	"keywords": [
-		"event",
-		"eventify",
-		"events",
-		"observer",
-		"emit",
-		"trigger",
-		"wildcard",
-		"typed",
-		"schema",
-		"backbone"
-	],
-	"engines": {
-		"node": ">=20"
-	},
-	"sideEffects": false,
-	"main": "./dist/index.js",
-	"types": "./dist/index.d.ts",
-	"exports": {
-		".": {
-			"types": "./dist/index.d.ts",
-			"browser": "./dist/index.js",
-			"bun": "./dist/index.js",
-			"node": "./dist/index.js",
-			"default": "./dist/index.js"
-		}
-	},
-	"files": [
-		"dist",
-		"BENCHMARKS.md",
-		"CHANGELOG.md",
-		"README.md",
-		"LICENSE"
-	],
-	"scripts": {
-		"check": "bun x tsc -p tsconfig.json --noEmit",
-		"build": "bun build src/index.ts --outdir dist --entry-naming \"[name].js\" --format esm --target=browser --sourcemap=linked",
-		"build:types": "bun x tsc -p tsconfig.types.json",
-		"build:all": "bun run build && bun run build:types",
-		"bench": "bun run build && bun run bench/bench.mjs",
-		"bench:structures": "bun run bench/structures.mjs",
-		"bench:patterns": "bun run bench/patterns.mjs",
-		"bench:node": "bun run build && node bench/bench.mjs",
-		"bench:node:structures": "node bench/structures.mjs",
-		"bench:node:patterns": "node bench/patterns.mjs",
-		"bench:browser": "bun run build && bunx playwright test -c bench/playwright.config.mjs",
-		"bench:all": "bun run bench && bun run bench:patterns && bun run bench:structures && bun run bench:node && bun run bench:node:patterns && bun run bench:node:structures && bun run bench:browser",
-		"format": "bunx @biomejs/biome format . --write",
-		"format:check": "bunx @biomejs/biome format . --check",
-		"typecheck:tests": "bun x tsc -p test/tsconfig.types.json",
-		"test": "bun test",
-		"test:browser": "bun run build && bunx playwright test",
-		"test:all": "bun test --coverage && bun run typecheck:tests && bun run build && bunx playwright test",
-		"test:watch": "bun test --watch",
-		"ci:local": "act -W .github/workflows/ci.yml --container-architecture linux/arm64 && act -W .github/workflows/browser.yml --container-architecture linux/arm64",
-		"publish": "bun run build:all && npm publish"
-	},
-	"devDependencies": {
-		"@playwright/test": "^1.42.0",
-		"typescript": "^5.0.0",
-		"zod": "^4.3.6"
-	}
+  "name": "eventify",
+  "version": "3.0.0",
+  "description": "Tiny event emitter with strict TypeScript typings and optional schema validation.",
+  "author": "Bermi Ferrer <bermi@bermilabs.com>",
+  "license": "MIT",
+  "type": "module",
+  "keywords": [
+    "event",
+    "eventify",
+    "events",
+    "observer",
+    "emit",
+    "trigger",
+    "wildcard",
+    "typed",
+    "schema",
+    "backbone"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "sideEffects": false,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "browser": "./dist/index.js",
+      "bun": "./dist/index.js",
+      "node": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "BENCHMARKS.md",
+    "CHANGELOG.md",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "check": "bun x tsc -p tsconfig.json --noEmit",
+    "build": "bun build src/index.ts --outdir dist --entry-naming \"[name].js\" --format esm --target=browser --sourcemap=linked",
+    "build:types": "bun x tsc -p tsconfig.types.json",
+    "build:all": "bun run build && bun run build:types",
+    "bench": "bun run build && bun run bench/bench.mjs",
+    "bench:structures": "bun run bench/structures.mjs",
+    "bench:patterns": "bun run bench/patterns.mjs",
+    "bench:node": "bun run build && node bench/bench.mjs",
+    "bench:node:structures": "node bench/structures.mjs",
+    "bench:node:patterns": "node bench/patterns.mjs",
+    "bench:browser": "bun run build && bunx playwright test -c bench/playwright.config.mjs",
+    "bench:all": "bun run bench && bun run bench:patterns && bun run bench:structures && bun run bench:node && bun run bench:node:patterns && bun run bench:node:structures && bun run bench:browser",
+    "format": "bunx prettier --write .",
+    "format:check": "bunx prettier --check .",
+    "typecheck:tests": "bun x tsc -p test/tsconfig.types.json",
+    "test": "bun test",
+    "test:browser": "bun run build && bunx playwright test",
+    "test:all": "bun test --coverage && bun run typecheck:tests && bun run build && bunx playwright test",
+    "test:watch": "bun test --watch",
+    "ci:local": "act -W .github/workflows/ci.yml --container-architecture linux/arm64 && act -W .github/workflows/browser.yml --container-architecture linux/arm64",
+    "publish": "bun run build:all && npm publish"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.42.0",
+    "typescript": "^5.0.0",
+    "zod": "^4.3.6"
+  }
 }
