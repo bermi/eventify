@@ -50,6 +50,7 @@
     "bench:node:structures": "node bench/structures.mjs",
     "bench:node:patterns": "node bench/patterns.mjs",
     "bench:browser": "bun run build && bunx playwright test -c bench/playwright.config.mjs",
+    "bench:all": "bun run bench && bun run bench:patterns && bun run bench:structures && bun run bench:node && bun run bench:node:patterns && bun run bench:node:structures && bun run bench:browser",
     "typecheck:tests": "bun x tsc -p test/tsconfig.types.json",
     "test": "bun test",
     "test:browser": "bun run build && bunx playwright test",
