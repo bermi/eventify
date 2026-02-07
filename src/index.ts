@@ -220,8 +220,8 @@ export interface EventifyStatic<Events extends EventMap = EventMap>
   defaultSchemaValidator: SchemaValidator;
 }
 
-type AnyCallback = (...args: any[]) => unknown;
-type AnyEmitter = EventifyEmitter<any>;
+type AnyCallback = (...args: unknown[]) => unknown;
+type AnyEmitter = EventifyEmitter<EventMap>;
 
 type CallbackWithOriginal = AnyCallback & {
   _callback?: AnyCallback;
@@ -296,16 +296,16 @@ function safeCall(
 }
 
 type EventApiAction = 'on' | 'once' | 'off' | 'trigger';
-type EventApiFn = (name: string, ...args: unknown[]) => unknown;
-
 function eventsApi(obj: AnyEmitter, action: EventApiAction, name: unknown, rest: unknown[]): boolean {
   if (!name) {
     return true;
   }
+  const target = obj as EventifyEmitter<EventMap>;
+  const method = target[action] as (...args: unknown[]) => unknown;
   if (typeof name === 'object') {
     for (const key in name as Record<string, unknown>) {
       if (Object.prototype.hasOwnProperty.call(name, key)) {
-        (obj as any)[action](key, (name as Record<string, unknown>)[key], ...rest);
+        method.call(target, key, (name as Record<string, unknown>)[key], ...rest);
       }
     }
     return false;
@@ -313,7 +313,7 @@ function eventsApi(obj: AnyEmitter, action: EventApiAction, name: unknown, rest:
   if (typeof name === 'string' && eventSplitter.test(name)) {
     const names = name.split(eventSplitter);
     for (const eventName of names) {
-      (obj as any)[action](eventName, ...rest);
+      method.call(target, eventName, ...rest);
     }
     return false;
   }
@@ -559,8 +559,83 @@ function removeListener(
   }
 }
 
-const proto: EventifyEmitter<any> = {
-  on(this: AnyEmitter, name: any, callback?: any, context?: unknown) {
+function iterate(this: AnyEmitter, name: 'all', options?: IterateOptions): AsyncIterableIterator<[EventName<EventMap>, ...unknown[]]>;
+function iterate(this: AnyEmitter, name: string, options?: IterateOptions): AsyncIterableIterator<unknown>;
+function iterate(this: AnyEmitter, name: string, options?: IterateOptions): AsyncIterableIterator<unknown> {
+  const emitter = this as AnyEmitter;
+  const queue: unknown[] = [];
+  let pending: ((value: IteratorResult<unknown>) => void) | null = null;
+  let done = false;
+  const isAll = name === 'all';
+
+  const handler = (...args: unknown[]) => {
+    if (done) {
+      return;
+    }
+    const value = isAll ? args : (args.length === 1 ? args[0] : args);
+    if (pending) {
+      const resolve = pending;
+      pending = null;
+      resolve({ value, done: false });
+      return;
+    }
+    queue.push(value);
+  };
+
+  emitter.on(name, handler);
+
+  const stop = () => {
+    if (done) {
+      return;
+    }
+    done = true;
+    emitter.off(name, handler);
+    if (pending) {
+      const resolve = pending;
+      pending = null;
+      resolve({ value: undefined, done: true });
+    }
+  };
+
+  if (options?.signal) {
+    if (options.signal.aborted) {
+      stop();
+    } else {
+      options.signal.addEventListener('abort', stop, { once: true });
+    }
+  }
+
+  const iterator: AsyncIterableIterator<unknown> = {
+    [Symbol.asyncIterator]() {
+      return iterator;
+    },
+    next() {
+      if (queue.length) {
+        const value = queue.shift() as unknown;
+        return Promise.resolve({ value, done: false });
+      }
+      if (done) {
+        return Promise.resolve({ value: undefined, done: true });
+      }
+      return new Promise((resolve) => {
+        pending = resolve;
+      });
+    },
+    return() {
+      stop();
+      return Promise.resolve({ value: undefined, done: true });
+    },
+    throw(error) {
+      stop();
+      return Promise.reject(error);
+    },
+  };
+
+  return iterator;
+}
+
+const proto: EventifyEmitter<EventMap> = {
+  on(this: AnyEmitter, name: unknown, callback?: unknown, context?: unknown) {
     if (!eventsApi(this, 'on', name, [callback, context]) || !callback) {
       return this;
     }
@@ -568,7 +643,7 @@ const proto: EventifyEmitter<any> = {
     return this;
   },
 
-  once(this: AnyEmitter, name: any, callback?: any, context?: unknown) {
+  once(this: AnyEmitter, name: unknown, callback?: unknown, context?: unknown) {
     if (!eventsApi(this, 'once', name, [callback, context]) || !callback) {
       return this;
     }
@@ -579,14 +654,14 @@ const proto: EventifyEmitter<any> = {
         return undefined;
       }
       ran = true;
-      self.off(name, onceListener, context);
+      self.off(name as string, onceListener, context);
       return (callback as CallbackWithOriginal).apply(this, args);
     } as CallbackWithOriginal;
     onceListener._callback = callback as CallbackWithOriginal;
-    return (this as AnyEmitter).on(name, onceListener, context);
+    return (this as AnyEmitter).on(name as string, onceListener, context);
   },
 
-  off(this: AnyEmitter, name?: any, callback?: any, context?: unknown) {
+  off(this: AnyEmitter, name?: unknown, callback?: unknown, context?: unknown) {
     const state = getExistingState(this);
     if (!state || !eventsApi(this, 'off', name, [callback, context])) {
       return this;
@@ -611,7 +686,7 @@ const proto: EventifyEmitter<any> = {
     return this;
   },
 
-  trigger(this: AnyEmitter, name: any, ...args: unknown[]) {
+  trigger(this: AnyEmitter, name: unknown, ...args: unknown[]) {
     const state = getExistingState(this);
     if (!state) {
       return this;
@@ -676,47 +751,57 @@ const proto: EventifyEmitter<any> = {
     return this;
   },
 
-  emit(this: AnyEmitter, name: any, ...args: unknown[]) {
-    return (this as AnyEmitter).trigger(name, ...args);
+  emit(this: AnyEmitter, name: unknown, ...args: unknown[]) {
+    return (this as AnyEmitter).trigger(name as string, ...args);
   },
 
-  produce(this: AnyEmitter, name: any, ...args: unknown[]) {
-    return (this as AnyEmitter).trigger(name, ...args);
+  produce(this: AnyEmitter, name: unknown, ...args: unknown[]) {
+    return (this as AnyEmitter).trigger(name as string, ...args);
   },
 
-  listenTo(this: AnyEmitter, obj: any, name: any, callback?: any) {
+  listenTo(this: AnyEmitter, obj: unknown, name: unknown, callback?: unknown) {
     if (!obj) {
       return this;
     }
     const state = getState(this);
     state.listeningTo.add(obj as AnyEmitter);
-    if (typeof name === 'object') {
+    if (name && typeof name === 'object') {
       callback = this;
     }
-    (obj as AnyEmitter).on(name, callback, this);
+    const target = obj as AnyEmitter;
+    if (name && typeof name === 'object') {
+      target.on(name as EventHandlerMap<EventMap>, this);
+    } else {
+      target.on(name as string, callback as CallbackWithOriginal | undefined, this);
+    }
     return this;
   },
 
-  listenToOnce(this: AnyEmitter, obj: any, name: any, callback?: any) {
+  listenToOnce(this: AnyEmitter, obj: unknown, name: unknown, callback?: unknown) {
     if (!obj) {
       return this;
     }
     const state = getState(this);
     state.listeningTo.add(obj as AnyEmitter);
-    if (typeof name === 'object') {
+    if (name && typeof name === 'object') {
       callback = this;
     }
-    (obj as AnyEmitter).once(name, callback, this);
+    const target = obj as AnyEmitter;
+    if (name && typeof name === 'object') {
+      target.once(name as EventHandlerMap<EventMap>, this);
+    } else {
+      target.once(name as string, callback as CallbackWithOriginal | undefined, this);
+    }
     return this;
   },
 
-  stopListening(this: AnyEmitter, obj?: any, name?: any, callback?: any) {
+  stopListening(this: AnyEmitter, obj?: unknown, name?: unknown, callback?: unknown) {
     const state = getExistingState(this);
     if (!state) {
       return this;
     }
     const deleteListener = !name && !callback;
-    if (typeof name === 'object') {
+    if (name && typeof name === 'object') {
       callback = this;
     }
 
@@ -728,7 +813,11 @@ const proto: EventifyEmitter<any> = {
     }
 
     for (const target of targets) {
-      (target as AnyEmitter).off(name, callback, this);
+      if (name && typeof name === 'object') {
+        target.off(name as EventHandlerMap<EventMap>, this);
+      } else {
+        target.off(name as string | null | undefined, callback as CallbackWithOriginal | null | undefined, this);
+      }
       if (deleteListener) {
         state.listeningTo.delete(target);
       }
@@ -739,78 +828,7 @@ const proto: EventifyEmitter<any> = {
     return this;
   },
 
-  iterate(this: AnyEmitter, name: any, options?: IterateOptions): AsyncIterableIterator<any> {
-    const emitter = this as AnyEmitter;
-    const queue: unknown[] = [];
-    let pending: ((value: IteratorResult<unknown>) => void) | null = null;
-    let done = false;
-    const isAll = name === 'all';
-
-    const handler = (...args: unknown[]) => {
-      if (done) {
-        return;
-      }
-      const value = isAll ? args : (args.length === 1 ? args[0] : args);
-      if (pending) {
-        const resolve = pending;
-        pending = null;
-        resolve({ value, done: false });
-        return;
-      }
-      queue.push(value);
-    };
-
-    emitter.on(name, handler);
-
-    const stop = () => {
-      if (done) {
-        return;
-      }
-      done = true;
-      emitter.off(name, handler);
-      if (pending) {
-        const resolve = pending;
-        pending = null;
-        resolve({ value: undefined, done: true });
-      }
-    };
-
-    if (options?.signal) {
-      if (options.signal.aborted) {
-        stop();
-      } else {
-        options.signal.addEventListener('abort', stop, { once: true });
-      }
-    }
-
-    const iterator: AsyncIterableIterator<any> = {
-      [Symbol.asyncIterator]() {
-        return iterator;
-      },
-      next() {
-        if (queue.length) {
-          const value = queue.shift() as unknown;
-          return Promise.resolve({ value, done: false });
-        }
-        if (done) {
-          return Promise.resolve({ value: undefined, done: true });
-        }
-        return new Promise((resolve) => {
-          pending = resolve;
-        });
-      },
-      return() {
-        stop();
-        return Promise.resolve({ value: undefined, done: true });
-      },
-      throw(error) {
-        stop();
-        return Promise.reject(error);
-      },
-    };
-
-    return iterator;
-  },
+  iterate,
 };
 
 export function createEventify<TSchemas extends SchemaMap>(
@@ -840,8 +858,9 @@ export function enable(
   options?: EventifyOptions
 ): object & EventifyEmitter<EventMap> {
   const destination = (target ?? {}) as Record<string, unknown>;
+  const protoMethods = proto as unknown as Record<string, unknown>;
   for (const method of Object.keys(proto)) {
-    (destination as any)[method] = (proto as any)[method];
+    destination[method] = protoMethods[method];
   }
   getState(destination, options as EventifyOptions);
   return destination as unknown as object & EventifyEmitter<EventMap>;

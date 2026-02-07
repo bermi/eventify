@@ -24,10 +24,12 @@ function eventsApi(obj, action, name, rest) {
   if (!name) {
     return true;
   }
+  const target = obj;
+  const method = target[action];
   if (typeof name === "object") {
     for (const key in name) {
       if (Object.prototype.hasOwnProperty.call(name, key)) {
-        obj[action](key, name[key], ...rest);
+        method.call(target, key, name[key], ...rest);
       }
     }
     return false;
@@ -35,7 +37,7 @@ function eventsApi(obj, action, name, rest) {
   if (typeof name === "string" && eventSplitter.test(name)) {
     const names = name.split(eventSplitter);
     for (const eventName of names) {
-      obj[action](eventName, ...rest);
+      method.call(target, eventName, ...rest);
     }
     return false;
   }
@@ -243,6 +245,72 @@ function removeListener(state, name, callback, context) {
     state.events.delete(name);
   }
 }
+function iterate(name, options) {
+  const emitter = this;
+  const queue = [];
+  let pending = null;
+  let done = false;
+  const isAll = name === "all";
+  const handler = (...args) => {
+    if (done) {
+      return;
+    }
+    const value = isAll ? args : args.length === 1 ? args[0] : args;
+    if (pending) {
+      const resolve = pending;
+      pending = null;
+      resolve({ value, done: false });
+      return;
+    }
+    queue.push(value);
+  };
+  emitter.on(name, handler);
+  const stop = () => {
+    if (done) {
+      return;
+    }
+    done = true;
+    emitter.off(name, handler);
+    if (pending) {
+      const resolve = pending;
+      pending = null;
+      resolve({ value: undefined, done: true });
+    }
+  };
+  if (options?.signal) {
+    if (options.signal.aborted) {
+      stop();
+    } else {
+      options.signal.addEventListener("abort", stop, { once: true });
+    }
+  }
+  const iterator = {
+    [Symbol.asyncIterator]() {
+      return iterator;
+    },
+    next() {
+      if (queue.length) {
+        const value = queue.shift();
+        return Promise.resolve({ value, done: false });
+      }
+      if (done) {
+        return Promise.resolve({ value: undefined, done: true });
+      }
+      return new Promise((resolve) => {
+        pending = resolve;
+      });
+    },
+    return() {
+      stop();
+      return Promise.resolve({ value: undefined, done: true });
+    },
+    throw(error) {
+      stop();
+      return Promise.reject(error);
+    }
+  };
+  return iterator;
+}
 var proto = {
   on(name, callback, context) {
     if (!eventsApi(this, "on", name, [callback, context]) || !callback) {
@@ -360,10 +428,15 @@ var proto = {
     }
     const state = getState(this);
     state.listeningTo.add(obj);
-    if (typeof name === "object") {
+    if (name && typeof name === "object") {
       callback = this;
     }
-    obj.on(name, callback, this);
+    const target = obj;
+    if (name && typeof name === "object") {
+      target.on(name, this);
+    } else {
+      target.on(name, callback, this);
+    }
     return this;
   },
   listenToOnce(obj, name, callback) {
@@ -372,10 +445,15 @@ var proto = {
     }
     const state = getState(this);
     state.listeningTo.add(obj);
-    if (typeof name === "object") {
+    if (name && typeof name === "object") {
       callback = this;
     }
-    obj.once(name, callback, this);
+    const target = obj;
+    if (name && typeof name === "object") {
+      target.once(name, this);
+    } else {
+      target.once(name, callback, this);
+    }
     return this;
   },
   stopListening(obj, name, callback) {
@@ -384,7 +462,7 @@ var proto = {
       return this;
     }
     const deleteListener = !name && !callback;
-    if (typeof name === "object") {
+    if (name && typeof name === "object") {
       callback = this;
     }
     const targets = [];
@@ -394,7 +472,11 @@ var proto = {
       targets.push(...state.listeningTo.values());
     }
     for (const target of targets) {
-      target.off(name, callback, this);
+      if (name && typeof name === "object") {
+        target.off(name, this);
+      } else {
+        target.off(name, callback, this);
+      }
       if (deleteListener) {
         state.listeningTo.delete(target);
       }
@@ -404,72 +486,7 @@ var proto = {
     }
     return this;
   },
-  iterate(name, options) {
-    const emitter = this;
-    const queue = [];
-    let pending = null;
-    let done = false;
-    const isAll = name === "all";
-    const handler = (...args) => {
-      if (done) {
-        return;
-      }
-      const value = isAll ? args : args.length === 1 ? args[0] : args;
-      if (pending) {
-        const resolve = pending;
-        pending = null;
-        resolve({ value, done: false });
-        return;
-      }
-      queue.push(value);
-    };
-    emitter.on(name, handler);
-    const stop = () => {
-      if (done) {
-        return;
-      }
-      done = true;
-      emitter.off(name, handler);
-      if (pending) {
-        const resolve = pending;
-        pending = null;
-        resolve({ value: undefined, done: true });
-      }
-    };
-    if (options?.signal) {
-      if (options.signal.aborted) {
-        stop();
-      } else {
-        options.signal.addEventListener("abort", stop, { once: true });
-      }
-    }
-    const iterator = {
-      [Symbol.asyncIterator]() {
-        return iterator;
-      },
-      next() {
-        if (queue.length) {
-          const value = queue.shift();
-          return Promise.resolve({ value, done: false });
-        }
-        if (done) {
-          return Promise.resolve({ value: undefined, done: true });
-        }
-        return new Promise((resolve) => {
-          pending = resolve;
-        });
-      },
-      return() {
-        stop();
-        return Promise.resolve({ value: undefined, done: true });
-      },
-      throw(error) {
-        stop();
-        return Promise.reject(error);
-      }
-    };
-    return iterator;
-  }
+  iterate
 };
 function createEventify(options) {
   const emitter = Object.create(proto);
@@ -478,8 +495,9 @@ function createEventify(options) {
 }
 function enable(target, options) {
   const destination = target ?? {};
+  const protoMethods = proto;
   for (const method of Object.keys(proto)) {
-    destination[method] = proto[method];
+    destination[method] = protoMethods[method];
   }
   getState(destination, options);
   return destination;
@@ -509,5 +527,5 @@ export {
   Eventify
 };
 
-//# debugId=9E2160D6D493EC8764756E2164756E21
+//# debugId=FA096C47A6FA6CC764756E2164756E21
 //# sourceMappingURL=index.js.map
