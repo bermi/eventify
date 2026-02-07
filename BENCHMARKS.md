@@ -10,6 +10,7 @@ Commands
 `bun run bench:node:structures`
 `bun run bench:node:patterns`
 `bun run bench:browser` (Playwright)
+`bun run bench:all`
 
 Environment
 - Date: 2026-02-06
