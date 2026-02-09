@@ -12,9 +12,9 @@ function reportError(state, error, meta) {
 function isPromiseLike(value) {
   return typeof value === "object" && value !== null && typeof value.then === "function";
 }
-function safeCall(state, callback, ctx, args, meta) {
+function safeCall(state, callback, bound, args, meta) {
   try {
-    const result = callback.apply(ctx, args);
+    const result = callback.apply(bound, args);
     if (isPromiseLike(result)) {
       result.then(undefined, (error) => reportError(state, error, meta));
     }
@@ -61,8 +61,7 @@ function eventsApi(obj, action, name, rest) {
     return false;
   }
   if (typeof name === "string" && eventSplitter.test(name)) {
-    const names = name.split(eventSplitter);
-    for (const eventName of names) {
+    for (const eventName of name.split(eventSplitter)) {
       method.call(target, eventName, ...rest);
     }
     return false;
@@ -92,7 +91,7 @@ function getState(target, options) {
       listeningTo: new Set,
       target: new EventTarget,
       dispatchers: new Map,
-      nativeListeners: new Map,
+      nativeEvents: new Set,
       schemas: options?.schemas,
       validate: options?.validate,
       onError: options?.onError ?? noop,
@@ -182,11 +181,7 @@ function matchesPatternSegments(state, entry, eventSegments) {
   }
   const lastIndex = entry.trailingWildcard ? patternLength - 1 : patternLength;
   for (let i = 0;i < lastIndex; i += 1) {
-    const segment = patternSegments[i];
-    if (segment === wildcard) {
-      continue;
-    }
-    if (segment !== eventSegments[i]) {
+    if (patternSegments[i] !== wildcard && patternSegments[i] !== eventSegments[i]) {
       return false;
     }
   }
@@ -194,12 +189,8 @@ function matchesPatternSegments(state, entry, eventSegments) {
 }
 function addListener(emitter, name, callback, context) {
   const state = getState(emitter);
-  const ctx = context ?? emitter;
-  const entry = {
-    callback,
-    context,
-    ctx
-  };
+  const bound = context ?? emitter;
+  const entry = { callback, context, bound };
   if (name === "all") {
     state.all.push(entry);
     return;
@@ -207,23 +198,12 @@ function addListener(emitter, name, callback, context) {
   if (isPatternName(state, name)) {
     const segments = splitName(name, state.namespaceDelimiter);
     const trailingWildcard = segments[segments.length - 1] === state.wildcard;
-    const hasInternalWildcard = segments.slice(0, -1).includes(state.wildcard);
-    if (trailingWildcard && !hasInternalWildcard) {
-      state.patterns.push({
-        ...entry,
-        pattern: name,
-        match: "prefix",
-        prefix: name.slice(0, Math.max(0, name.length - state.wildcard.length))
-      });
-    } else {
-      state.patterns.push({
-        ...entry,
-        pattern: name,
-        match: "segments",
-        segments,
-        trailingWildcard
-      });
-    }
+    state.patterns.push({
+      ...entry,
+      pattern: name,
+      segments,
+      trailingWildcard
+    });
     return;
   }
   let list = state.events.get(name);
@@ -236,7 +216,7 @@ function addListener(emitter, name, callback, context) {
       const args = getEventArgs(event);
       const snapshot = event[eventifyListenersKey] ?? state.events.get(name) ?? [];
       for (const listenerEntry of snapshot) {
-        safeCall(state, listenerEntry.callback, listenerEntry.ctx, args, {
+        safeCall(state, listenerEntry.callback, listenerEntry.bound, args, {
           event: name,
           args,
           listener: listenerEntry.callback,
@@ -256,34 +236,19 @@ function removeListener(state, name, callback, context) {
     const ctxMatches = !context || context === entry.context;
     return cbMatches && ctxMatches;
   };
-  const removeFromList = (list2) => {
-    const retained2 = [];
-    for (const entry of list2) {
-      if (matches(entry)) {} else {
-        retained2.push(entry);
-      }
-    }
-    return retained2;
-  };
   if (name === "all") {
-    state.all = removeFromList(state.all);
+    state.all = state.all.filter((e) => !matches(e));
     return;
   }
   if (isPatternName(state, name)) {
-    const retained2 = [];
-    for (const entry of state.patterns) {
-      if (entry.pattern !== name || !matches(entry)) {
-        retained2.push(entry);
-      }
-    }
-    state.patterns = retained2;
+    state.patterns = state.patterns.filter((e) => e.pattern !== name || !matches(e));
     return;
   }
   const list = state.events.get(name);
   if (!list) {
     return;
   }
-  const retained = removeFromList(list);
+  const retained = list.filter((e) => !matches(e));
   if (retained.length) {
     state.events.set(name, retained);
   } else {
@@ -294,6 +259,36 @@ function removeListener(state, name, callback, context) {
       state.dispatchers.delete(name);
     }
   }
+}
+function hasListenersWithContext(targetState, context) {
+  for (const [, list] of targetState.events) {
+    for (const entry of list) {
+      if (entry.context === context)
+        return true;
+    }
+  }
+  for (const entry of targetState.patterns) {
+    if (entry.context === context)
+      return true;
+  }
+  for (const entry of targetState.all) {
+    if (entry.context === context)
+      return true;
+  }
+  return false;
+}
+function listenToHelper(self, obj, name, callback, method) {
+  if (!obj)
+    return self;
+  const state = getState(self);
+  state.listeningTo.add(obj);
+  const target = obj;
+  if (name && typeof name === "object") {
+    target[method](name, self);
+  } else {
+    target[method](name, callback, self);
+  }
+  return self;
 }
 function iterate(name, options) {
   const emitter = this;
@@ -366,9 +361,7 @@ var proto = {
     const state = getState(this);
     state.target.addEventListener(type, listener, options);
     if (listener) {
-      const listeners = state.nativeListeners.get(type) ?? new Set;
-      listeners.add(listener);
-      state.nativeListeners.set(type, listeners);
+      state.nativeEvents.add(type);
     }
   },
   removeEventListener(type, listener, options) {
@@ -377,15 +370,6 @@ var proto = {
       return;
     }
     state.target.removeEventListener(type, listener, options);
-    if (listener) {
-      const listeners = state.nativeListeners.get(type);
-      if (listeners) {
-        listeners.delete(listener);
-        if (!listeners.size) {
-          state.nativeListeners.delete(type);
-        }
-      }
-    }
   },
   dispatchEvent(event) {
     const state = getState(this);
@@ -430,14 +414,22 @@ var proto = {
       state.all = [];
       return this;
     }
-    const patternNames = new Set(state.patterns.map((entry) => entry.pattern));
-    const names = name ? [name] : [
-      ...state.events.keys(),
-      ...patternNames,
-      ...state.all.length ? ["all"] : []
-    ];
-    for (const eventName of names) {
-      removeListener(state, eventName, callback, context);
+    if (name) {
+      removeListener(state, name, callback, context);
+    } else {
+      for (const eventName of [...state.events.keys()]) {
+        removeListener(state, eventName, callback, context);
+      }
+      const seenPatterns = new Set;
+      for (const entry of state.patterns) {
+        if (!seenPatterns.has(entry.pattern)) {
+          seenPatterns.add(entry.pattern);
+          removeListener(state, entry.pattern, callback, context);
+        }
+      }
+      if (state.all.length) {
+        removeListener(state, "all", callback, context);
+      }
     }
     return this;
   },
@@ -454,9 +446,7 @@ var proto = {
     const eventSnapshot = state.events.get(eventName)?.slice() ?? null;
     const patternSnapshot = state.patterns.length ? state.patterns.slice() : null;
     const allSnapshot = state.all.length ? state.all.slice() : null;
-    let eventSegments = null;
-    const hasNativeListeners = state.nativeListeners.get(eventName)?.size;
-    if (hasNativeListeners) {
+    if (state.nativeEvents.has(eventName)) {
       const event = createEvent(eventName, validatedArgs);
       if (eventSnapshot?.length) {
         Object.defineProperty(event, eventifyListenersKey, {
@@ -467,7 +457,7 @@ var proto = {
       state.target.dispatchEvent(event);
     } else if (eventSnapshot?.length) {
       for (const entry of eventSnapshot) {
-        safeCall(state, entry.callback, entry.ctx, validatedArgs, {
+        safeCall(state, entry.callback, entry.bound, validatedArgs, {
           event: eventName,
           args: validatedArgs,
           listener: entry.callback,
@@ -476,20 +466,15 @@ var proto = {
       }
     }
     if (patternSnapshot) {
+      let eventSegments = null;
       for (const entry of patternSnapshot) {
-        if (entry.match === "prefix") {
-          if (!eventName.startsWith(entry.prefix)) {
-            continue;
-          }
-        } else {
-          if (!eventSegments) {
-            eventSegments = splitName(eventName, state.namespaceDelimiter);
-          }
-          if (!matchesPatternSegments(state, entry, eventSegments)) {
-            continue;
-          }
+        if (!eventSegments) {
+          eventSegments = splitName(eventName, state.namespaceDelimiter);
         }
-        safeCall(state, entry.callback, entry.ctx, validatedArgs, {
+        if (!matchesPatternSegments(state, entry, eventSegments)) {
+          continue;
+        }
+        safeCall(state, entry.callback, entry.bound, validatedArgs, {
           event: eventName,
           args: validatedArgs,
           listener: entry.callback,
@@ -499,7 +484,7 @@ var proto = {
     }
     if (allSnapshot) {
       for (const entry of allSnapshot) {
-        safeCall(state, entry.callback, entry.ctx, [eventName, ...validatedArgs], {
+        safeCall(state, entry.callback, entry.bound, [eventName, ...validatedArgs], {
           event: eventName,
           args: validatedArgs,
           listener: entry.callback,
@@ -516,66 +501,37 @@ var proto = {
     return this.trigger(name, ...args);
   },
   listenTo(obj, name, callback) {
-    if (!obj) {
-      return this;
-    }
-    const state = getState(this);
-    state.listeningTo.add(obj);
-    if (name && typeof name === "object") {
-      callback = this;
-    }
-    const target = obj;
-    if (name && typeof name === "object") {
-      target.on(name, this);
-    } else {
-      target.on(name, callback, this);
-    }
-    return this;
+    return listenToHelper(this, obj, name, callback, "on");
   },
   listenToOnce(obj, name, callback) {
-    if (!obj) {
-      return this;
-    }
-    const state = getState(this);
-    state.listeningTo.add(obj);
-    if (name && typeof name === "object") {
-      callback = this;
-    }
-    const target = obj;
-    if (name && typeof name === "object") {
-      target.once(name, this);
-    } else {
-      target.once(name, callback, this);
-    }
-    return this;
+    return listenToHelper(this, obj, name, callback, "once");
   },
   stopListening(obj, name, callback) {
     const state = getExistingState(this);
     if (!state) {
       return this;
     }
-    const deleteListener = !name && !callback;
-    if (name && typeof name === "object") {
-      callback = this;
-    }
-    const targets = [];
-    if (obj) {
-      targets.push(obj);
-    } else {
-      targets.push(...state.listeningTo.values());
-    }
+    const removeAll = !name && !callback;
+    const targets = obj ? [obj] : [...state.listeningTo.values()];
     for (const target of targets) {
       if (name && typeof name === "object") {
         target.off(name, this);
       } else {
         target.off(name, callback, this);
       }
-      if (deleteListener) {
-        state.listeningTo.delete(target);
+      if (!removeAll) {
+        const targetState = getExistingState(target);
+        if (!targetState || !hasListenersWithContext(targetState, this)) {
+          state.listeningTo.delete(target);
+        }
       }
     }
-    if (deleteListener && !obj) {
-      state.listeningTo.clear();
+    if (removeAll) {
+      if (obj) {
+        state.listeningTo.delete(obj);
+      } else {
+        state.listeningTo.clear();
+      }
     }
     return this;
   },
@@ -602,7 +558,6 @@ var Eventify = Object.assign(EventifyInstance, {
   create: createEventify,
   mixin: enable,
   proto,
-  noConflict: () => Eventify,
   defaultSchemaValidator
 });
 var createEmitter = createEventify;
@@ -620,5 +575,5 @@ export {
   Eventify
 };
 
-//# debugId=CC1457DA4423BE7364756E2164756E21
+//# debugId=977FBEE62A7F036064756E2164756E21
 //# sourceMappingURL=index.js.map

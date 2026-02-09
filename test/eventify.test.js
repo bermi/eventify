@@ -23,13 +23,6 @@ describe("Eventify", () => {
     "iterate",
   ];
 
-  describe("noConflict", () => {
-    it("returns the current instance (no-op in ESM)", () => {
-      const current = Eventify.noConflict();
-      expect(current).toBe(Eventify);
-    });
-  });
-
   describe("proto noops", () => {
     it("trigger is a noop on plain objects", () => {
       const target = {};
@@ -128,9 +121,9 @@ describe("Eventify", () => {
   });
 
   describe("On and trigger", () => {
-    const obj = { counter: 0 };
-    decorateWithEvents(obj);
     it("should increment counter", () => {
+      const obj = { counter: 0 };
+      decorateWithEvents(obj);
       obj.on("event", () => {
         obj.counter += 1;
       });
@@ -138,6 +131,12 @@ describe("Eventify", () => {
       expect(obj.counter).toBe(1);
     });
     it("should increment counter five times", () => {
+      const obj = { counter: 0 };
+      decorateWithEvents(obj);
+      obj.on("event", () => {
+        obj.counter += 1;
+      });
+      obj.trigger("event");
       obj.trigger("event");
       obj.trigger("event");
       obj.trigger("event");
@@ -147,14 +146,13 @@ describe("Eventify", () => {
   });
 
   describe("Binding and triggering multiple events", () => {
-    const obj = { counter: 0 };
-    decorateWithEvents(obj);
-
-    obj.on("a b c", () => {
-      obj.counter += 1;
-    });
-
     it("should only affect active counters", () => {
+      const obj = { counter: 0 };
+      decorateWithEvents(obj);
+      obj.on("a b c", () => {
+        obj.counter += 1;
+      });
+
       obj.trigger("a");
       expect(obj.counter).toBe(1);
 
@@ -533,79 +531,75 @@ describe("Eventify", () => {
   });
 
   describe("On, then unbind all functions", () => {
-    const obj = { counter: 0 };
-    decorateWithEvents(obj);
-    const callback = () => {
-      obj.counter += 1;
-    };
-    obj.on("event", callback);
-    obj.trigger("event");
-    obj.off("event");
-    obj.trigger("event");
     it("should have only been incremented once", () => {
+      const obj = { counter: 0 };
+      decorateWithEvents(obj);
+      const callback = () => {
+        obj.counter += 1;
+      };
+      obj.on("event", callback);
+      obj.trigger("event");
+      obj.off("event");
+      obj.trigger("event");
       expect(obj.counter).toBe(1);
     });
   });
 
   describe("Bind two callbacks, unbind only one", () => {
-    const obj = { counterA: 0, counterB: 0 };
-    decorateWithEvents(obj);
-    const callback = () => {
-      obj.counterA += 1;
-    };
-    obj.on("event", callback);
-    obj.on("event", () => {
-      obj.counterB += 1;
-    });
-    obj.trigger("event");
-    obj.off("event", callback);
-    obj.trigger("event");
-    it("should only increment counterA once", () => {
+    it("should only unbind the specified callback", () => {
+      const obj = { counterA: 0, counterB: 0 };
+      decorateWithEvents(obj);
+      const callback = () => {
+        obj.counterA += 1;
+      };
+      obj.on("event", callback);
+      obj.on("event", () => {
+        obj.counterB += 1;
+      });
+      obj.trigger("event");
+      obj.off("event", callback);
+      obj.trigger("event");
       expect(obj.counterA).toBe(1);
-    });
-    it("should increment counterB twice", () => {
       expect(obj.counterB).toBe(2);
     });
   });
 
   describe("Unbind a callback in the midst of it firing", () => {
-    const obj = { counter: 0 };
-    decorateWithEvents(obj);
-    const callback = () => {
-      obj.counter += 1;
-      obj.off("event", callback);
-    };
-    obj.on("event", callback);
-    obj.trigger("event");
-    obj.trigger("event");
-    obj.trigger("event");
     it("should unbind the callback", () => {
+      const obj = { counter: 0 };
+      decorateWithEvents(obj);
+      const callback = () => {
+        obj.counter += 1;
+        obj.off("event", callback);
+      };
+      obj.on("event", callback);
+      obj.trigger("event");
+      obj.trigger("event");
+      obj.trigger("event");
       expect(obj.counter).toBe(1);
     });
   });
 
   describe("Two binds that unbind themselves", () => {
-    const obj = { counterA: 0, counterB: 0 };
-    decorateWithEvents(obj);
+    it("should have incremented each counter only once", () => {
+      const obj = { counterA: 0, counterB: 0 };
+      decorateWithEvents(obj);
 
-    function incrA() {
-      obj.counterA += 1;
-      obj.off("event", incrA);
-    }
+      function incrA() {
+        obj.counterA += 1;
+        obj.off("event", incrA);
+      }
 
-    function incrB() {
-      obj.counterB += 1;
-      obj.off("event", incrB);
-    }
-    obj.on("event", incrA);
-    obj.on("event", incrB);
-    obj.trigger("event");
-    obj.trigger("event");
-    obj.trigger("event");
-    it("should have incremented counterA only once", () => {
+      function incrB() {
+        obj.counterB += 1;
+        obj.off("event", incrB);
+      }
+      obj.on("event", incrA);
+      obj.on("event", incrB);
+      obj.trigger("event");
+      obj.trigger("event");
+      obj.trigger("event");
       expect(obj.counterA).toBe(1);
-    });
-    it("should have incremented counterB only once", () => {
       expect(obj.counterB).toBe(1);
     });
   });
@@ -629,34 +623,33 @@ describe("Eventify", () => {
   });
 
   describe("nested trigger with unbind", () => {
-    const obj = { counter: 0 };
-    decorateWithEvents(obj);
-
-    function incr1() {
-      obj.counter += 1;
-      obj.off("event", incr1);
-      obj.trigger("event");
-    }
-
-    function incr2() {
-      obj.counter += 1;
-    }
-    obj.on("event", incr1);
-    obj.on("event", incr2);
-    obj.trigger("event");
     it("should have incremented the counter three times", () => {
+      const obj = { counter: 0 };
+      decorateWithEvents(obj);
+
+      function incr1() {
+        obj.counter += 1;
+        obj.off("event", incr1);
+        obj.trigger("event");
+      }
+
+      function incr2() {
+        obj.counter += 1;
+      }
+      obj.on("event", incr1);
+      obj.on("event", incr2);
+      obj.trigger("event");
       expect(obj.counter).toBe(3);
     });
   });
 
   describe("callback list is not altered during trigger", () => {
-    let counter = 0;
-    const obj = decorateWithEvents();
-
-    function incr() {
-      counter += 1;
-    }
     it("prevents bind from altering the callback list", () => {
+      let counter = 0;
+      const obj = decorateWithEvents();
+      function incr() {
+        counter += 1;
+      }
       obj
         .on("event", () => {
           obj.on("event", incr).on("all", incr);
@@ -665,8 +658,12 @@ describe("Eventify", () => {
       expect(counter).toBe(0);
     });
     it("prevents unbind from altering the callback list", () => {
+      let counter = 0;
+      const obj = decorateWithEvents();
+      function incr() {
+        counter += 1;
+      }
       obj
-        .off()
         .on("event", () => {
           obj.off("event", incr).off("all", incr);
         })
@@ -678,13 +675,12 @@ describe("Eventify", () => {
   });
 
   describe("#1282 - 'all' callback list is retrieved after each event.", () => {
-    let counter = 0;
-    const obj = decorateWithEvents();
-
-    function incr() {
-      counter += 1;
-    }
     it("should retrieve all the callbacks", () => {
+      let counter = 0;
+      const obj = decorateWithEvents();
+      function incr() {
+        counter += 1;
+      }
       obj
         .on("x", () => {
           obj.on("y", incr).on("all", incr);

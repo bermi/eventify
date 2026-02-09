@@ -10,7 +10,7 @@ export type PayloadArgs<T> = [T] extends [void]
       ? T
       : [T];
 
-export type PayloadValue<T> = T extends readonly unknown[] ? T : T;
+// #1: PayloadValue removed (was identity type: both branches returned T)
 
 export type EventName<Events extends EventMap> = Extract<keyof Events, string>;
 
@@ -189,7 +189,7 @@ export interface EventifyEmitter<Events extends EventMap = EventMap> {
   iterate<K extends EventName<Events>>(
     name: K,
     options?: IterateOptions,
-  ): AsyncIterableIterator<PayloadValue<Events[K]>>;
+  ): AsyncIterableIterator<Events[K]>;
   iterate(
     name: "all",
     options?: IterateOptions,
@@ -231,7 +231,6 @@ export interface EventifyStatic<
   ): EventifyEmitter<TEvents>;
   mixin: EventifyStatic["enable"];
   proto: EventifyEmitter<EventMap>;
-  noConflict: () => EventifyStatic<Events>;
   defaultSchemaValidator: SchemaValidator;
 }
 
@@ -242,26 +241,20 @@ type CallbackWithOriginal = AnyCallback & {
   _callback?: AnyCallback;
 };
 
+// #12: context = user-provided value for identity matching in off()
+//      bound   = resolved execution context (context ?? emitter) for .apply()
 type ListenerEntry = {
   callback: CallbackWithOriginal;
   context?: unknown;
-  ctx: unknown;
+  bound: unknown;
 };
 
-type SegmentPatternEntry = ListenerEntry & {
+// #4: Single pattern type (removed PrefixPatternEntry fast path)
+type PatternEntry = ListenerEntry & {
   pattern: string;
-  match: "segments";
   segments: string[];
   trailingWildcard: boolean;
 };
-
-type PrefixPatternEntry = ListenerEntry & {
-  pattern: string;
-  match: "prefix";
-  prefix: string;
-};
-
-type PatternEntry = SegmentPatternEntry | PrefixPatternEntry;
 
 type EmitterState = {
   events: Map<string, ListenerEntry[]>;
@@ -270,7 +263,9 @@ type EmitterState = {
   listeningTo: Set<AnyEmitter>;
   target: EventTarget;
   dispatchers: Map<string, EventListener>;
-  nativeListeners: Map<string, Set<EventListenerOrEventListenerObject>>;
+  // #5: Simplified from Map<string, Set<EventListenerOrEventListenerObject>>.
+  // Conservative one-way set: names are added on addEventListener, never removed.
+  nativeEvents: Set<string>;
   schemas: SchemaMap | undefined;
   validate: SchemaValidator | undefined;
   onError: ErrorHandler<EventMap>;
@@ -314,12 +309,12 @@ function isPromiseLike(value: unknown): value is PromiseLike<unknown> {
 function safeCall(
   state: EmitterState,
   callback: CallbackWithOriginal,
-  ctx: unknown,
+  bound: unknown,
   args: unknown[],
   meta: ErrorMeta<EventMap>,
 ): void {
   try {
-    const result = callback.apply(ctx, args);
+    const result = callback.apply(bound, args);
     if (isPromiseLike(result)) {
       result.then(undefined, (error: unknown) =>
         reportError(state, error, meta),
@@ -356,6 +351,8 @@ function createEvent(name: string, args: unknown[]): CustomEvent<unknown> {
   return event;
 }
 
+// #6: Returns true when `name` is a single event string (caller should proceed).
+// Returns false when object-map or space-delimited events were already dispatched.
 type EventApiAction = "on" | "once" | "off" | "trigger";
 function eventsApi(
   obj: AnyEmitter,
@@ -382,8 +379,7 @@ function eventsApi(
     return false;
   }
   if (typeof name === "string" && eventSplitter.test(name)) {
-    const names = name.split(eventSplitter);
-    for (const eventName of names) {
+    for (const eventName of name.split(eventSplitter)) {
       method.call(target, eventName, ...rest);
     }
     return false;
@@ -430,7 +426,7 @@ function getState(target: object, options?: EventifyOptions): EmitterState {
       listeningTo: new Set(),
       target: new EventTarget(),
       dispatchers: new Map(),
-      nativeListeners: new Map(),
+      nativeEvents: new Set(),
       schemas: options?.schemas,
       validate: options?.validate,
       onError: options?.onError ?? noop,
@@ -517,9 +513,10 @@ function isPatternName(state: EmitterState, name: string): boolean {
   return segments.includes(wildcard);
 }
 
+// #4: Single match function for all pattern types (removed prefix fast path)
 function matchesPatternSegments(
   state: EmitterState,
-  entry: SegmentPatternEntry,
+  entry: PatternEntry,
   eventSegments: string[],
 ): boolean {
   const wildcard = state.wildcard;
@@ -537,11 +534,10 @@ function matchesPatternSegments(
 
   const lastIndex = entry.trailingWildcard ? patternLength - 1 : patternLength;
   for (let i = 0; i < lastIndex; i += 1) {
-    const segment = patternSegments[i];
-    if (segment === wildcard) {
-      continue;
-    }
-    if (segment !== eventSegments[i]) {
+    if (
+      patternSegments[i] !== wildcard &&
+      patternSegments[i] !== eventSegments[i]
+    ) {
       return false;
     }
   }
@@ -556,37 +552,23 @@ function addListener(
   context?: unknown,
 ): void {
   const state = getState(emitter);
-  const ctx = context ?? emitter;
-  const entry: ListenerEntry = {
-    callback,
-    context,
-    ctx,
-  };
+  const bound = context ?? emitter;
+  const entry: ListenerEntry = { callback, context, bound };
 
   if (name === "all") {
     state.all.push(entry);
     return;
   }
+  // #4: All pattern listeners use the segments path
   if (isPatternName(state, name)) {
     const segments = splitName(name, state.namespaceDelimiter);
     const trailingWildcard = segments[segments.length - 1] === state.wildcard;
-    const hasInternalWildcard = segments.slice(0, -1).includes(state.wildcard);
-    if (trailingWildcard && !hasInternalWildcard) {
-      state.patterns.push({
-        ...entry,
-        pattern: name,
-        match: "prefix",
-        prefix: name.slice(0, Math.max(0, name.length - state.wildcard.length)),
-      });
-    } else {
-      state.patterns.push({
-        ...entry,
-        pattern: name,
-        match: "segments",
-        segments,
-        trailingWildcard,
-      });
-    }
+    state.patterns.push({
+      ...entry,
+      pattern: name,
+      segments,
+      trailingWildcard,
+    });
     return;
   }
 
@@ -603,7 +585,7 @@ function addListener(
         state.events.get(name) ??
         [];
       for (const listenerEntry of snapshot) {
-        safeCall(state, listenerEntry.callback, listenerEntry.ctx, args, {
+        safeCall(state, listenerEntry.callback, listenerEntry.bound, args, {
           event: name,
           args,
           listener: listenerEntry.callback,
@@ -631,29 +613,15 @@ function removeListener(
     return cbMatches && ctxMatches;
   };
 
-  const removeFromList = (list: ListenerEntry[]): ListenerEntry[] => {
-    const retained: ListenerEntry[] = [];
-    for (const entry of list) {
-      if (matches(entry)) {
-      } else {
-        retained.push(entry);
-      }
-    }
-    return retained;
-  };
-
+  // #8: Use filter instead of manual loop with empty if block
   if (name === "all") {
-    state.all = removeFromList(state.all);
+    state.all = state.all.filter((e) => !matches(e));
     return;
   }
   if (isPatternName(state, name)) {
-    const retained: PatternEntry[] = [];
-    for (const entry of state.patterns) {
-      if (entry.pattern !== name || !matches(entry)) {
-        retained.push(entry);
-      }
-    }
-    state.patterns = retained;
+    state.patterns = state.patterns.filter(
+      (e) => e.pattern !== name || !matches(e),
+    );
     return;
   }
 
@@ -661,7 +629,7 @@ function removeListener(
   if (!list) {
     return;
   }
-  const retained = removeFromList(list);
+  const retained = list.filter((e) => !matches(e));
   if (retained.length) {
     state.events.set(name, retained);
   } else {
@@ -672,6 +640,50 @@ function removeListener(
       state.dispatchers.delete(name);
     }
   }
+}
+
+// #13: Check whether any listeners on targetState have the given context.
+// Used by stopListening to clean up stale listeningTo references.
+function hasListenersWithContext(
+  targetState: EmitterState,
+  context: unknown,
+): boolean {
+  for (const [, list] of targetState.events) {
+    for (const entry of list) {
+      if (entry.context === context) return true;
+    }
+  }
+  for (const entry of targetState.patterns) {
+    if (entry.context === context) return true;
+  }
+  for (const entry of targetState.all) {
+    if (entry.context === context) return true;
+  }
+  return false;
+}
+
+// #7: Shared helper for listenTo and listenToOnce
+function listenToHelper(
+  self: AnyEmitter,
+  obj: unknown,
+  name: unknown,
+  callback: unknown,
+  method: "on" | "once",
+): AnyEmitter {
+  if (!obj) return self;
+  const state = getState(self);
+  state.listeningTo.add(obj as AnyEmitter);
+  const target = obj as AnyEmitter;
+  if (name && typeof name === "object") {
+    target[method](name as EventHandlerMap<EventMap>, self);
+  } else {
+    target[method](
+      name as string,
+      callback as CallbackWithOriginal | undefined,
+      self,
+    );
+  }
+  return self;
 }
 
 function iterate(
@@ -690,6 +702,9 @@ function iterate(
   options?: IterateOptions,
 ): AsyncIterableIterator<unknown> {
   const emitter = this as AnyEmitter;
+  // #14: Queue is unbounded by design. Producers that emit faster than
+  // consumers read will grow this array indefinitely. Use AbortSignal
+  // or return() to bound lifetime.
   const queue: unknown[] = [];
   let pending: ((value: IteratorResult<unknown>) => void) | null = null;
   let done = false;
@@ -762,6 +777,7 @@ function iterate(
 }
 
 const proto: EventifyEmitter<EventMap> = {
+  // #5: Simplified — just forward to EventTarget and flag the event name.
   addEventListener(
     this: AnyEmitter,
     type: string,
@@ -771,9 +787,7 @@ const proto: EventifyEmitter<EventMap> = {
     const state = getState(this);
     state.target.addEventListener(type, listener, options);
     if (listener) {
-      const listeners = state.nativeListeners.get(type) ?? new Set();
-      listeners.add(listener);
-      state.nativeListeners.set(type, listeners);
+      state.nativeEvents.add(type);
     }
   },
 
@@ -788,15 +802,6 @@ const proto: EventifyEmitter<EventMap> = {
       return;
     }
     state.target.removeEventListener(type, listener, options);
-    if (listener) {
-      const listeners = state.nativeListeners.get(type);
-      if (listeners) {
-        listeners.delete(listener);
-        if (!listeners.size) {
-          state.nativeListeners.delete(type);
-        }
-      }
-    }
   },
 
   dispatchEvent(this: AnyEmitter, event: Event) {
@@ -854,22 +859,39 @@ const proto: EventifyEmitter<EventMap> = {
       return this;
     }
 
-    const patternNames = new Set(state.patterns.map((entry) => entry.pattern));
-    const names = name
-      ? [name as string]
-      : [
-          ...state.events.keys(),
-          ...patternNames,
-          ...(state.all.length ? ["all"] : []),
-        ];
-
-    for (const eventName of names) {
+    // #9: When name is provided, remove directly. Otherwise iterate each
+    // collection without materializing an intermediate Set from .map().
+    if (name) {
       removeListener(
         state,
-        eventName,
+        name as string,
         callback as CallbackWithOriginal,
         context,
       );
+    } else {
+      for (const eventName of [...state.events.keys()]) {
+        removeListener(
+          state,
+          eventName,
+          callback as CallbackWithOriginal,
+          context,
+        );
+      }
+      const seenPatterns = new Set<string>();
+      for (const entry of state.patterns) {
+        if (!seenPatterns.has(entry.pattern)) {
+          seenPatterns.add(entry.pattern);
+          removeListener(
+            state,
+            entry.pattern,
+            callback as CallbackWithOriginal,
+            context,
+          );
+        }
+      }
+      if (state.all.length) {
+        removeListener(state, "all", callback as CallbackWithOriginal, context);
+      }
     }
     return this;
   },
@@ -891,10 +913,12 @@ const proto: EventifyEmitter<EventMap> = {
       ? state.patterns.slice()
       : null;
     const allSnapshot = state.all.length ? state.all.slice() : null;
-    let eventSegments: string[] | null = null;
 
-    const hasNativeListeners = state.nativeListeners.get(eventName)?.size;
-    if (hasNativeListeners) {
+    // #5: When native addEventListener listeners exist for this event,
+    // dispatch through EventTarget so both eventify and native listeners fire.
+    // The eventifyListenersKey carries the snapshot for the dispatcher.
+    // Otherwise call eventify listeners directly (avoids CustomEvent overhead).
+    if (state.nativeEvents.has(eventName)) {
       const event = createEvent(eventName, validatedArgs);
       if (eventSnapshot?.length) {
         Object.defineProperty(event, eventifyListenersKey, {
@@ -905,7 +929,7 @@ const proto: EventifyEmitter<EventMap> = {
       state.target.dispatchEvent(event);
     } else if (eventSnapshot?.length) {
       for (const entry of eventSnapshot) {
-        safeCall(state, entry.callback, entry.ctx, validatedArgs, {
+        safeCall(state, entry.callback, entry.bound, validatedArgs, {
           event: eventName,
           args: validatedArgs,
           listener: entry.callback,
@@ -915,20 +939,16 @@ const proto: EventifyEmitter<EventMap> = {
     }
 
     if (patternSnapshot) {
+      let eventSegments: string[] | null = null;
       for (const entry of patternSnapshot) {
-        if (entry.match === "prefix") {
-          if (!eventName.startsWith(entry.prefix)) {
-            continue;
-          }
-        } else {
-          if (!eventSegments) {
-            eventSegments = splitName(eventName, state.namespaceDelimiter);
-          }
-          if (!matchesPatternSegments(state, entry, eventSegments)) {
-            continue;
-          }
+        // #4: Single segments-based match for all patterns
+        if (!eventSegments) {
+          eventSegments = splitName(eventName, state.namespaceDelimiter);
         }
-        safeCall(state, entry.callback, entry.ctx, validatedArgs, {
+        if (!matchesPatternSegments(state, entry, eventSegments)) {
+          continue;
+        }
+        safeCall(state, entry.callback, entry.bound, validatedArgs, {
           event: eventName,
           args: validatedArgs,
           listener: entry.callback,
@@ -942,7 +962,7 @@ const proto: EventifyEmitter<EventMap> = {
         safeCall(
           state,
           entry.callback,
-          entry.ctx,
+          entry.bound,
           [eventName, ...validatedArgs],
           {
             event: eventName,
@@ -965,26 +985,9 @@ const proto: EventifyEmitter<EventMap> = {
     return (this as AnyEmitter).trigger(name as string, ...args);
   },
 
+  // #7: Deduplicated — both delegate to listenToHelper
   listenTo(this: AnyEmitter, obj: unknown, name: unknown, callback?: unknown) {
-    if (!obj) {
-      return this;
-    }
-    const state = getState(this);
-    state.listeningTo.add(obj as AnyEmitter);
-    if (name && typeof name === "object") {
-      callback = this;
-    }
-    const target = obj as AnyEmitter;
-    if (name && typeof name === "object") {
-      target.on(name as EventHandlerMap<EventMap>, this);
-    } else {
-      target.on(
-        name as string,
-        callback as CallbackWithOriginal | undefined,
-        this,
-      );
-    }
-    return this;
+    return listenToHelper(this, obj, name, callback, "on");
   },
 
   listenToOnce(
@@ -993,25 +996,7 @@ const proto: EventifyEmitter<EventMap> = {
     name: unknown,
     callback?: unknown,
   ) {
-    if (!obj) {
-      return this;
-    }
-    const state = getState(this);
-    state.listeningTo.add(obj as AnyEmitter);
-    if (name && typeof name === "object") {
-      callback = this;
-    }
-    const target = obj as AnyEmitter;
-    if (name && typeof name === "object") {
-      target.once(name as EventHandlerMap<EventMap>, this);
-    } else {
-      target.once(
-        name as string,
-        callback as CallbackWithOriginal | undefined,
-        this,
-      );
-    }
-    return this;
+    return listenToHelper(this, obj, name, callback, "once");
   },
 
   stopListening(
@@ -1024,17 +1009,11 @@ const proto: EventifyEmitter<EventMap> = {
     if (!state) {
       return this;
     }
-    const deleteListener = !name && !callback;
-    if (name && typeof name === "object") {
-      callback = this;
-    }
+    const removeAll = !name && !callback;
 
-    const targets: AnyEmitter[] = [];
-    if (obj) {
-      targets.push(obj as AnyEmitter);
-    } else {
-      targets.push(...state.listeningTo.values());
-    }
+    const targets: AnyEmitter[] = obj
+      ? [obj as AnyEmitter]
+      : [...state.listeningTo.values()];
 
     for (const target of targets) {
       if (name && typeof name === "object") {
@@ -1046,12 +1025,22 @@ const proto: EventifyEmitter<EventMap> = {
           this,
         );
       }
-      if (deleteListener) {
-        state.listeningTo.delete(target);
+      // #13: Clean up stale listeningTo references to allow GC.
+      // For targeted removal, check whether any listeners with our
+      // context remain on the target before keeping the reference.
+      if (!removeAll) {
+        const targetState = getExistingState(target);
+        if (!targetState || !hasListenersWithContext(targetState, this)) {
+          state.listeningTo.delete(target);
+        }
       }
     }
-    if (deleteListener && !obj) {
-      state.listeningTo.clear();
+    if (removeAll) {
+      if (obj) {
+        state.listeningTo.delete(obj as AnyEmitter);
+      } else {
+        state.listeningTo.clear();
+      }
     }
     return this;
   },
@@ -1090,6 +1079,8 @@ export function enable<
   target?: TTarget,
   options?: EventifyOptions<TSchemas, TEvents>,
 ): TTarget & EventifyEmitter<TEvents>;
+// #11: Copies methods as own enumerable properties for Backbone-style mixin compat.
+// Use createEventify() for prototype-based construction instead.
 export function enable(
   target?: object,
   options?: EventifyOptions,
@@ -1105,18 +1096,20 @@ export function enable(
 
 const EventifyInstance = createEventify();
 
+// #10: The default export is both a live emitter and a static namespace
+// for backward compatibility with Eventify v2 / Backbone-style usage.
 const Eventify = Object.assign(EventifyInstance, {
   version: "3.0.0",
   enable,
   create: createEventify,
   mixin: enable,
   proto,
-  noConflict: () => Eventify as EventifyStatic,
   defaultSchemaValidator,
 }) as EventifyStatic;
 
 const createEmitter = createEventify;
 const decorateWithEvents = enable;
+// #2: Compat alias. Prefer importing `defaultSchemaValidator` directly.
 const setDefaultSchemaValidator = defaultSchemaValidator;
 
 export {
