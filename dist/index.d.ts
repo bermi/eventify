@@ -1,6 +1,5 @@
 export type EventMap = Record<string, unknown>;
 export type PayloadArgs<T> = [T] extends [void] ? [] : [T] extends [undefined] ? [] : T extends readonly unknown[] ? T : [T];
-export type PayloadValue<T> = T extends readonly unknown[] ? T : T;
 export type EventName<Events extends EventMap> = Extract<keyof Events, string>;
 export type EventHandler<T> = (...args: PayloadArgs<T>) => unknown;
 export type AllHandler<Events extends EventMap> = (event: EventName<Events>, ...args: unknown[]) => unknown;
@@ -80,7 +79,7 @@ export interface EventifyEmitter<Events extends EventMap = EventMap> {
     listenToOnce<OtherEvents extends EventMap>(other: EventifyEmitter<OtherEvents>, name: EventHandlerMap<OtherEvents>): this;
     listenToOnce(other: EventifyEmitter<EventMap>, name: string, callback?: (...args: unknown[]) => unknown): this;
     stopListening<OtherEvents extends EventMap>(other?: EventifyEmitter<OtherEvents> | null, name?: EventName<OtherEvents> | EventHandlerMap<OtherEvents> | null, callback?: ((...args: unknown[]) => unknown) | null): this;
-    iterate<K extends EventName<Events>>(name: K, options?: IterateOptions): AsyncIterableIterator<PayloadValue<Events[K]>>;
+    iterate<K extends EventName<Events>>(name: K, options?: IterateOptions): AsyncIterableIterator<Events[K]>;
     iterate(name: "all", options?: IterateOptions): AsyncIterableIterator<[EventName<Events>, ...unknown[]]>;
     iterate(name: string, options?: IterateOptions): AsyncIterableIterator<unknown>;
 }
@@ -96,7 +95,6 @@ export interface EventifyStatic<Events extends EventMap = EventMap> extends Even
     create<TEvents extends EventMap = EventMap, TSchemas extends SchemaMap | undefined = undefined>(options?: EventifyOptions<TSchemas, TEvents>): EventifyEmitter<TEvents>;
     mixin: EventifyStatic["enable"];
     proto: EventifyEmitter<EventMap>;
-    noConflict: () => EventifyStatic<Events>;
     defaultSchemaValidator: SchemaValidator;
 }
 export declare function defaultSchemaValidator(schema: SchemaLike, payload: unknown, _meta: ValidationMeta): unknown;
